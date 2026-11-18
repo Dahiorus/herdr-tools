@@ -5,31 +5,21 @@
 // id (filter=123 or its URL) or raw JQL, typed once in the Jira tab.
 
 import { View, div } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
+import { v_flex, InputState, ScrollHandle } from "gpui-base";
 import { exec, focused, spaces, theme, props, closeOverlay, notify, window, home, appHome, readTextFile, writeTextFile, checking } from "herdr";
 import { toJql, jiraSource, withSource } from "./jira.js";
 import { profileAccount } from "./profile.js";
+import { GH_LISTS } from "./github.js";
+import { matches } from "./filter.js";
+import { ghCommand, firstLine, sh, json } from "./run.js";
+import { listRow, header, filterBox } from "./rows.js";
 
 const TABS = [["pr", "PR"], ["issue", "Issues"], ["jira", "Jira"]];
 // Hidden: Herdr reloads the mod when any other file of its folder is saved.
 const CONFIG = () => `${appHome()}/mods/start-work/.config.json`;
 
 const FIX = "À corriger dans mods/start-work/.config.json.";
-// gh with the token of the project profile's account. The token goes through the environment,
-// never argv (readable in /proc). shortcut: ~/.claude only, not $CLAUDE_CONFIG_DIR.
-const GH_AS = 'GH_TOKEN=$(gh auth token -u "$1") || exit; shift; export GH_TOKEN; exec gh "$@"';
 const PROFILES = () => `${home()}/.claude/profiles.json`;
-const firstLine = (r) => (r.stderr || r.stdout).trim().split("\n")[0];
-
-// exec rejects when the program can't start, the machine is unreachable or it times out (30 s).
-const sh = (cmd, args, opts) => exec(cmd, args, opts).catch((e) => { throw new Error(`${cmd} : ${e.message}`); });
-
-async function json(cmd, args, opts) {
-  const r = await sh(cmd, args, opts);
-  if (r.code !== 0) throw new Error(firstLine(r) || `${cmd} a échoué`);
-  return JSON.parse(r.stdout);
-}
-
 export default class StartWork extends View {
   init(_props, cx) {
     this.tab = "pr";
@@ -73,20 +63,25 @@ export default class StartWork extends View {
       this.lists.pr = this.lists.issue = { error: `${PROFILES()} illisible : ${e.message}` };
       return this.loadJira(cx);
     }
-    const ghCmd = (args) => (account ? ["sh", ["-c", GH_AS, "sh", account, ...args]] : ["gh", args]);
-    const gh = async (kind) => {
-      try {
-        const items = await json(...ghCmd([kind, "list", "--repo", this.repo, "--json", "number,title,author,url", "--limit", "50"]), on);
-        this.lists[kind] = items.map((i) => ({ id: `#${i.number}`, title: i.title, meta: i.author?.login ?? "", url: i.url }));
-      } catch (e) {
-        if (!/Could not resolve to a Repository/.test(e.message)) { this.lists[kind] = { error: e.message }; return cx.notify(); }
-        if (account) { this.lists[kind] = { error: `Le compte gh ${account} (profil du projet) ne voit pas ${this.repo}.` }; return cx.notify(); }
-        const login = (await exec("gh", ["api", "user", "--jq", ".login"], on).catch(() => null))?.stdout.trim();
-        this.lists[kind] = { error: `Le compte gh actif${login ? ` (${login})` : ""} ne voit pas ${this.repo}, et aucun profil (${PROFILES()}) ne couvre ce propriétaire. Change de compte avec gh auth switch.` };
-      }
-      cx.notify();
-    };
-    await Promise.all([gh("pr"), gh("issue"), this.loadJira(cx)]);
+    await Promise.all([this.loadGh("pr", account, on, cx), this.loadGh("issue", account, on, cx), this.loadJira(cx)]);
+  }
+
+  async loadGh(kind, account, on, cx) {
+    try {
+      const list = GH_LISTS[kind];
+      const items = await json(...ghCommand(account, [kind, "list", "--repo", this.repo, "--json", list.fields, "--limit", "50"]), on);
+      this.lists[kind] = items.map((i) => ({ id: `#${i.number}`, title: i.title, meta: list.meta(i), tag: list.tag?.(i), url: i.url }));
+    } catch (e) {
+      this.lists[kind] = { error: await this.ghError(e.message, account, on) };
+    }
+    cx.notify();
+  }
+
+  async ghError(message, account, on) {
+    if (!/Could not resolve to a Repository/.test(message)) return message;
+    if (account) return `Le compte gh ${account} (profil du projet) ne voit pas ${this.repo}.`;
+    const login = (await exec("gh", ["api", "user", "--jq", ".login"], on).catch(() => null))?.stdout.trim();
+    return `Le compte gh actif${login ? ` (${login})` : ""} ne voit pas ${this.repo}, et aucun profil (${PROFILES()}) ne couvre ce propriétaire. Change de compte avec gh auth switch.`;
   }
 
   async loadJira(cx) {
@@ -141,8 +136,7 @@ export default class StartWork extends View {
   items() {
     const l = this.lists[this.tab];
     if (!Array.isArray(l)) return [];
-    const f = this.filter.toLowerCase();
-    return l.filter((i) => !f || `${i.id} ${i.title} ${i.meta}`.toLowerCase().includes(f));
+    return l.filter((i) => matches(i, this.filter));
   }
 
   submit(cx) {
@@ -195,25 +189,11 @@ export default class StartWork extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().gap(6)
-        .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child(this.repo ?? "Start work"))
-        .children(TABS.map(([id, label]) => div().id(`sw-tab-${id}`).px(10).py(3).rounded(6).cursor_pointer()
-          .text_color(this.tab === id ? t.foreground : t.dim)
-          .when(this.tab === id, (el) => el.bg(t.selected))
-          .hover((s) => s.bg(t.hover))
-          .on_click((_e, cx) => { this.tab = id; this.select(0); cx.notify(); })
-          .child(label + (Array.isArray(this.lists[id]) ? ` ${this.lists[id].length}` : "")))))
-      .child(h_flex().h(36).flex_none().px(10).items_center().rounded(9).border_1().border_color(t.accent).bg(t.background)
-        .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)))
+      .child(header(this.repo, TABS, this.tab, this.lists, t, (id, cx) => { this.tab = id; this.select(0); cx.notify(); }))
+      .child(filterBox(this.input, t))
       .child(status
         ? div().p(10).text_color(t.muted).child(status)
         : v_flex().id("sw-list").h(Math.min(400, items.length * 32)).min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).children(items.map((i, n) =>
-          h_flex().id(`sw-${this.tab}-${i.id}`).flex_none().h(32).px(10).gap(10).items_center().rounded(7).cursor_pointer()
-            .when(n === this.at, (el) => el.bg(t.hover))
-            .hover((s) => s.bg(t.hover))
-            .on_click((_e, cx) => this.open(i, cx))
-            .child(div().w(90).flex_none().truncate().text_color(t.accent).child(i.id))
-            .child(div().flex_1().truncate().text_color(t.foreground).child(i.title))
-            .child(div().flex_none().text_size(11).text_color(t.dim).child(i.meta)))));
+          listRow(i, this.tab, n === this.at, t, (_e, cx) => this.open(i, cx)))));
   }
 }
