@@ -12,3 +12,4 @@
 /mods/*/jsconfig.json
 !/mods/start-work/
 /mods/start-work/.config.json
+!/docs/
