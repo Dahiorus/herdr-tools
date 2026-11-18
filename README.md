@@ -16,10 +16,19 @@ au `.gitignore` par une ligne `!/mods/<nom>/`.
 ## Start work
 
 `ctrl-shift-i` ouvre une fenêtre sur le repo GitHub du terminal focalisé, avec trois onglets : PR, Issues et Jira.
+Un clic à côté ne la ferme pas : le bouton `×` en haut à droite ou `Échap` la ferment (ou `ctrl-shift-i` à nouveau).
 `Tab` change d'onglet, la saisie filtre, `↑`/`↓` puis `Entrée` ouvre l'élément dans le navigateur, `Échap` ferme.
 Chaque PR affiche son statut à droite, en tag coloré : Prête en vert, Brouillon en gris.
 
-Prérequis : [`gh`](https://cli.github.com) connecté au compte qui voit le repo, et
+`Ctrl+Entrée` (`Cmd+Entrée` sur macOS) ou le bouton « Lancer » (ligne survolée ou sélectionnée) lance le travail dans
+un nouvel onglet Herdr du repo. Une issue démarre `/bugfix <url>`. Un ticket Jira m'est d'abord attribué et passe
+« En cours », puis l'agent démarre `/bugfix` (type Bug ou Bogue) ou `/feature`. Les Epic, les Initiative et les tickets
+déjà avancés sont refusés. Si le ticket est attribué à un autre, une confirmation s'affiche : `Entrée` le prend,
+`Échap` annule sans fermer ; Lancer, le changement d'onglet (`Tab`, clic sur un onglet) et le clic sur une ligne sont ignorés pendant ce temps.
+Pendant la prise en charge (« Prise en charge… » sur la ligne), `Entrée`, `Échap` et le clic sur une ligne sont ignorés jusqu'à l'agent ou
+au message d'erreur.
+
+Prérequis : `herdr-app` dans le PATH (pour lancer l'agent), [`gh`](https://cli.github.com) connecté au compte qui voit le repo, et
 [`acli`](https://developer.atlassian.com/cloud/acli/) connecté à Jira (`acli jira auth login`) pour l'onglet Jira.
 Le compte `gh` est celui du profil `/profile` dont les `owners` contiennent le propriétaire du repo
 (`~/.claude/profiles.json`), sinon le compte actif. Il doit être connecté (`gh auth login`) sur la machine du
@@ -29,9 +38,9 @@ La source Jira se donne une fois par repo, dans l'onglet Jira : une clé de proj
 ou l'URL du filtre) ou du JQL. Elle est gardée dans `mods/start-work/.config.json`, hors du dépôt. Un board n'est pas
 accepté tel quel : prendre le filtre du board.
 Pour la changer ensuite, éditer ou supprimer l'entrée du repo dans ce fichier :
-`{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js`, `node mods/start-work/profile.test.js`, `node mods/start-work/github.test.js` et `node mods/start-work/filter.test.js` vérifient la source, .config.json, le choix du compte, le statut des PR et le filtre.
+`{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js`, `node mods/start-work/profile.test.js`, `node mods/start-work/github.test.js`, `node mods/start-work/filter.test.js`, `node mods/start-work/start.test.js`, `node mods/start-work/launch.test.js` et `node mods/start-work/main.test.js` vérifient la source, .config.json, le choix du compte, le statut des PR, le filtre, les règles de lancement, les appels `acli` et `herdr-app`, et le parcours du dialogue (Lancer, confirmation, prise en charge, échecs).
 
-Écrire un mod : sa logique testable va dans un module sans import `gpui-kit` ni `herdr` (node ne charge pas `main.js`), avec son `*.test.js` à côté. Cela vaut aussi pour les tables de branchement (champs `gh`, couleurs de statut, libellés) et pour le filtre de liste : `main.js` ne garde que l'affichage, ce qu'il décide ou choisit n'y reste pas, sinon aucun test ne le voit. Un fichier d'état qu'il écrit dans son dossier porte un nom caché (`.config.json`) : Herdr ignore les fichiers cachés, sinon chaque écriture recharge le mod et le ramène à son premier onglet.
+Écrire un mod : sa logique testable va dans un module sans import `gpui-kit` ni `herdr`, avec son `*.test.js` à côté. Les appels extérieurs et le parcours de `main.js` se testent en important d'abord `fake.js`, qui remplace `herdr`, `gpui-kit` et `gpui-base` sous node et note chaque `exec`, toast et fermeture (`launch.test.js`, `main.test.js`). Cela vaut aussi pour les tables de branchement (champs `gh`, couleurs de statut, libellés) et pour le filtre de liste : `main.js` ne garde que l'affichage, ce qu'il décide ou choisit n'y reste pas, sinon aucun test ne le voit. Une garde « ignoré pendant X » (lancement, confirmation) commence par lister tous les chemins qui ferment ou quittent le dialogue (touche, clic sur une ligne ou un onglet, bouton `×`, second raccourci Herdr), et chacun reçoit son test dans `main.test.js`. Un fichier d'état qu'il écrit dans son dossier porte un nom caché (`.config.json`) : Herdr ignore les fichiers cachés, sinon chaque écriture recharge le mod et le ramène à son premier onglet.
 
 La doc des mods (API, overlays, `exec`, `fetch`) est dans `~/.config/herdr-app/AGENTS.md`, fourni par Herdr.
 
