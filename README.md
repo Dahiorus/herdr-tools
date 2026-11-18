@@ -11,6 +11,26 @@ au `.gitignore` par une ligne `!/mods/<nom>/`.
 |---|---|
 | `keys.json` | mes raccourcis |
 | `settings.json` | mes réglages |
+| `mods/start-work/` | PR, issues et tickets Jira du repo courant (`ctrl-shift-i`) |
+
+## Start work
+
+`ctrl-shift-i` ouvre une fenêtre sur le repo GitHub du terminal focalisé, avec trois onglets : PR, Issues et Jira.
+`Tab` change d'onglet, la saisie filtre, `↑`/`↓` puis `Entrée` ouvre l'élément dans le navigateur, `Échap` ferme.
+
+Prérequis : [`gh`](https://cli.github.com) connecté au compte qui voit le repo, et
+[`acli`](https://developer.atlassian.com/cloud/acli/) connecté à Jira (`acli jira auth login`) pour l'onglet Jira.
+Le compte `gh` est celui du profil `/profile` dont les `owners` contiennent le propriétaire du repo
+(`~/.claude/profiles.json`), sinon le compte actif. Il doit être connecté (`gh auth login`) sur la machine du
+terminal.
+
+La source Jira se donne une fois par repo, dans l'onglet Jira : une clé de projet (`ABC`), un filtre (`filter=12345`
+ou l'URL du filtre) ou du JQL. Elle est gardée dans `mods/start-work/.config.json`, hors du dépôt. Un board n'est pas
+accepté tel quel : prendre le filtre du board.
+Pour la changer ensuite, éditer ou supprimer l'entrée du repo dans ce fichier :
+`{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js` et `node mods/start-work/profile.test.js` vérifient la source, .config.json et le choix du compte.
+
+Écrire un mod : sa logique testable va dans un module sans import `gpui-kit` ni `herdr` (node ne charge pas `main.js`), avec son `*.test.js` à côté. Un fichier d'état qu'il écrit dans son dossier porte un nom caché (`.config.json`) : Herdr ignore les fichiers cachés, sinon chaque écriture recharge le mod et le ramène à son premier onglet.
 
 La doc des mods (API, overlays, `exec`, `fetch`) est dans `~/.config/herdr-app/AGENTS.md`, fourni par Herdr.
 

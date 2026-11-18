@@ -10,3 +10,5 @@
 /mods/*/gpui-kit.d.ts
 /mods/*/herdr.d.ts
 /mods/*/jsconfig.json
+!/mods/start-work/
+/mods/start-work/.config.json
