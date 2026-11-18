@@ -1,0 +1,12 @@
+# Herdr writes everything else here (window state, shipped mods and layouts,
+# generated types): only what is mine is tracked. Add a mod with !/mods/<name>/.
+/*
+!/.gitignore
+!/README.md
+!/keys.json
+!/settings.json
+!/mods/
+/mods/*
+/mods/*/gpui-kit.d.ts
+/mods/*/herdr.d.ts
+/mods/*/jsconfig.json
