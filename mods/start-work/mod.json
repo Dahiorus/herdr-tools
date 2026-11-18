@@ -1,1 +1,1 @@
-{ "place": "none", "title": "Start work", "overlay": { "kind": "popup", "at": "top", "offset": 40, "width": 720, "height": 0.7 } }
+{ "place": "none", "title": "Start work", "overlay": { "kind": "window", "width": 720, "height": 0.7 } }
