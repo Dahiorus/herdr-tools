@@ -108,6 +108,31 @@ const writes = () => fake.calls.filter((c) => c[0] === "herdr-app" || (c[0] === 
   assert.deepEqual(fake.closed, ["ov"]);
 }
 
+// A click in the dialog (a tab, a row) gives the keyboard back to the filter input, so Escape still reaches our binding.
+{
+  const { w, cx } = dialog("issue", issue);
+  w.render();
+  const before = fake.focus;
+  fake.clicks["start-work"]({}, cx);
+  assert.equal(fake.focus, before + 1);
+  // fake.js does not propagate: a tab or row click that stopped would never reach the root's handler.
+  for (const id of ["sw-tab-pr", "sw-issue-#12"]) {
+    cx.stopped = false;
+    fake.clicks[id]({}, cx);
+    assert.equal(cx.stopped, false, id);
+  }
+  await cx.settle();
+}
+// The Lancer button stops its click before the root: it gives the keyboard back itself.
+{
+  const { w, cx } = dialog("jira", alice);
+  w.render();
+  const before = fake.focus;
+  fake.clicks["sw-start-POSO-127"]({}, cx);
+  assert.equal(fake.focus, before + 1);
+  await cx.settle();
+}
+
 // While the ticket is being taken: Enter and Esc are ignored, a second Lancer too.
 {
   let release;
