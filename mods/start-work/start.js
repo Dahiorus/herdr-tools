@@ -20,8 +20,12 @@ export const ticketRow = (i, site) => {
 // shortcut: Epic and Initiative are refused, any other type gets /feature; list the types if a project adds more.
 export const skillFor = (type) => /^(bug|bogue)$/i.test(type) ? "/bugfix" : /^(epic|initiative)$/i.test(type) ? null : "/feature";
 
+// "1" is the point's number in the remaining-work file ("1.", "point 1"), "#42" a GitHub issue, "" nothing to point at.
+const taskRef = (id) => (id.startsWith("#") ? `, issue ${id}` : id ? `, point ${id}` : "");
+const taskTask = (t) => `/feature ${t.description.split("\n").map((l) => l.trim()).filter(Boolean).join(" ")} (${t.path}${taskRef(t.id)})`;
+
 export const agentTask = (kind, item) =>
-  kind === "jira" ? `${skillFor(item.type)} ${item.id} ${item.url}` : `/bugfix ${item.url}`;
+  kind === "task" ? taskTask(item) : kind === "jira" ? `${skillFor(item.type)} ${item.id} ${item.url}` : `/bugfix ${item.url}`;
 
 // Reason not to launch, or null. A ticket "à faire" (category new) is always launchable.
 export const refusal = (item, mine) => {
@@ -64,7 +68,7 @@ export async function takeWith(steps, run) {
 
 export const footerText = (tab, platform, confirming, empty) =>
   confirming ? `${confirming.item.id} est attribué à ${confirming.item.assigneeName}. Le prendre ? Entrée oui · Échap non` :
-  tab === "pr" || empty ? null : `Entrée ouvrir · ${platform === "macos" ? "Cmd" : "Ctrl"}+Entrée lancer le travail`;
+  tab === "pr" || empty ? null : `${tab === "task" ? "" : "Entrée ouvrir · "}${platform === "macos" ? "Cmd" : "Ctrl"}+Entrée lancer le travail`;
 
 // `herdr-app do` prints {"error": …} on failure; else firstLine.
 export const tabError = (r) => {

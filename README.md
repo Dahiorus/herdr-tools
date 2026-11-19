@@ -11,11 +11,11 @@ au `.gitignore` par une ligne `!/mods/<nom>/`.
 |---|---|
 | `keys.json` | mes raccourcis |
 | `settings.json` | mes réglages |
-| `mods/start-work/` | PR, issues et tickets Jira du repo courant (`ctrl-shift-i`) |
+| `mods/start-work/` | PR, issues et tickets Jira (ou tâches du reste à faire) du repo courant (`ctrl-shift-i`) |
 
 ## Start work
 
-`ctrl-shift-i` ouvre une fenêtre sur le repo GitHub du terminal focalisé, avec trois onglets : PR, Issues et Jira.
+`ctrl-shift-i` ouvre une fenêtre sur le repo GitHub du terminal focalisé, avec trois onglets : PR, Issues, puis Jira ou Tâches (voir plus bas).
 Un clic à côté ne la ferme pas : le bouton `×` en haut à droite ou `Échap` la ferment (ou `ctrl-shift-i` à nouveau).
 `Tab` change d'onglet, la saisie filtre, `↑`/`↓` puis `Entrée` ouvre l'élément dans le navigateur, `Échap` ferme.
 Chaque PR affiche son statut à droite, en tag coloré : Prête en vert, Brouillon en gris.
@@ -38,7 +38,23 @@ La source Jira se donne une fois par repo, dans l'onglet Jira : une clé de proj
 ou l'URL du filtre) ou du JQL. Elle est gardée dans `mods/start-work/.config.json`, hors du dépôt. Un board n'est pas
 accepté tel quel : prendre le filtre du board.
 Pour la changer ensuite, éditer ou supprimer l'entrée du repo dans ce fichier :
-`{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js`, `node mods/start-work/profile.test.js`, `node mods/start-work/github.test.js`, `node mods/start-work/filter.test.js`, `node mods/start-work/start.test.js`, `node mods/start-work/launch.test.js` et `node mods/start-work/main.test.js` vérifient la source, .config.json, le choix du compte, le statut des PR, le filtre, les règles de lancement, les appels `acli` et `herdr-app`, et le parcours du dialogue (Lancer, confirmation, prise en charge, échecs).
+`{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js`, `node mods/start-work/tasks.test.js`, `node mods/start-work/profile.test.js`, `node mods/start-work/github.test.js`, `node mods/start-work/filter.test.js`, `node mods/start-work/start.test.js`, `node mods/start-work/launch.test.js` et `node mods/start-work/main.test.js` vérifient la source, .config.json, la lecture du reste à faire, le choix du compte, le statut des PR, le filtre, les règles de lancement, les appels `acli` et `herdr-app`, et le parcours du dialogue (Lancer, confirmation, prise en charge, échecs).
+
+### Onglet Tâches
+
+Le troisième onglet s'appelle « Tâches » et remplace Jira dans deux cas : le profil `/profile` du propriétaire a
+`atlassian@claude-plugins-official` à `false` dans `enabledPlugins` (profil sans Jira), ou le repo n'a pas de source Jira
+et son reste à faire a une section Features. Il lit le fichier `reste-a-faire.md` ou `todo.md` du repo (le dossier `docs/`
+est prioritaire) sur la machine du terminal, sans jamais l'écrire ni appeler `acli`. Seule la section Features est
+listée ; les tâches rayées (`~~`) ou cochées (`[x]`) sont cachées. La description de la tâche sélectionnée s'affiche à
+droite. Sans fichier, avec plusieurs fichiers ou illisible, l'onglet affiche le message d'erreur correspondant (profil sans Jira ; sinon l'onglet Jira reste).
+`Ctrl+Entrée` (`Cmd+Entrée` sur macOS) ou « Lancer » ouvre un nouvel onglet Herdr nommé d'après le titre de la tâche
+(30 caractères au plus) et y démarre `/feature <description> (<chemin>, point N)`, où `N` est le numéro du point dans le
+reste à faire (« 9. »), ou `(<chemin>, issue #n)` quand la tâche cite une issue ; sans identifiant, seul le chemin est donné. Le
+reste à faire n'est pas modifié. `Entrée` n'ouvre rien sur une tâche (pas de page) et le pied de fenêtre ne l'annonce pas.
+
+Un repo du second cas qui veut l'onglet Jira reçoit sa source en éditant `mods/start-work/.config.json`
+(`{"jira": {"owner/repo": "ABC"}}`) : la saisie de la source n'est plus proposée.
 
 Écrire un mod : sa logique testable va dans un module sans import `gpui-kit` ni `herdr`, avec son `*.test.js` à côté. Les appels extérieurs et le parcours de `main.js` se testent en important d'abord `fake.js`, qui remplace `herdr`, `gpui-kit` et `gpui-base` sous node et note chaque `exec`, toast et fermeture (`launch.test.js`, `main.test.js`). Cela vaut aussi pour les tables de branchement (champs `gh`, couleurs de statut, libellés) et pour le filtre de liste : `main.js` ne garde que l'affichage, ce qu'il décide ou choisit n'y reste pas, sinon aucun test ne le voit. Une garde « ignoré pendant X » (lancement, confirmation) commence par lister tous les chemins qui ferment ou quittent le dialogue (touche, clic sur une ligne ou un onglet, bouton `×`, second raccourci Herdr), et chacun reçoit son test dans `main.test.js`. Un fichier d'état qu'il écrit dans son dossier porte un nom caché (`.config.json`) : Herdr ignore les fichiers cachés, sinon chaque écriture recharge le mod et le ramène à son premier onglet.
 

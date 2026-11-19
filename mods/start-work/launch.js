@@ -1,9 +1,10 @@
 // Every outside call of Start work (gh, git, acli, herdr-app, browser).
-import { exec, notify, closeOverlay, props, window } from "herdr";
+import { exec, notify, readTextFile, closeOverlay, props, window } from "herdr";
 import { GH_LISTS } from "./github.js";
 import { ghCommand, json, sh } from "./run.js";
 import { firstLine, tabError, ticketRow, decide, takeSteps, takeWith } from "./start.js";
 import { toJql } from "./jira.js";
+import { remainingWorkFile, parseTasks } from "./tasks.js";
 
 export async function fetchTickets(source, machine) {
   const [r, auth] = await Promise.all([
@@ -17,9 +18,9 @@ export async function fetchTickets(source, machine) {
 }
 
 // Error message, or null once the agent tab exists. exec rejects when herdr-app can't start.
-export async function launchAgent(item, space, cwd, task) {
+export async function launchAgent(name, space, cwd, task) {
   try {
-    const r = await exec("herdr-app", ["do", "tab.new", "--space", space, "--folder", cwd, "--name", item.id, "--argv", '["claude"]', "--task", task]);
+    const r = await exec("herdr-app", ["do", "tab.new", "--space", space, "--folder", cwd, "--name", name, "--argv", '["claude"]', "--task", task]);
     return tabError(r);
   } catch (e) {
     return e.message;
@@ -91,4 +92,24 @@ export async function openItem(item) {
   const error = await openUrl(item.url, window().platform);
   if (!error) return closeOverlay(props().overlay);
   notify({ title: "Ouverture impossible", body: error, level: "error" });
+}
+
+const gitOut = async (args, on) => {
+  const r = await sh("git", args, on);
+  if (r.code !== 0) throw new Error(firstLine(r) || `git ${args[0]} a échoué`);
+  return r.stdout;
+};
+
+// Remaining work read on the terminal's machine: {tasks} (null: no « Features » section) or {error}.
+export async function fetchTasks(repo, on) {
+  try {
+    const root = (await gitOut(["rev-parse", "--show-toplevel"], on)).trim();
+    const found = remainingWorkFile((await gitOut(["ls-files", "-z"], { ...on, cwd: root })).split("\0").filter(Boolean), repo);
+    if (found.error) return { error: found.error };
+    const md = await readTextFile(`${root}/${found.path}`, { on: on.on });
+    if (md === null) throw new Error(`${found.path} absent`);
+    return { tasks: parseTasks(md)?.map((t) => ({ ...t, path: found.path })) ?? null };
+  } catch (e) {
+    return { error: `Reste à faire illisible : ${firstLine({ stderr: e.message })}` };
+  }
 }

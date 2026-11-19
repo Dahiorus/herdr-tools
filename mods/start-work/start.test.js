@@ -14,6 +14,15 @@ assert.equal(tabError({ code: 1, stdout: '{\n  "error": "no space \\"nope\\""\n}
 assert.equal(tabError({ code: 1, stdout: "", stderr: "boom\nmore" }), "boom");
 assert.equal(firstLine({ code: 1, stdout: "out", stderr: "err\nmore" }), "err");
 assert.equal(firstLine({ code: 1, stdout: "out\nmore", stderr: "" }), "out");
+const task = { id: "1", title: "Duels en concours Campagne", description: "**Duels en concours Campagne** : les tableaux\n  ne couvrent que TAEI.", path: "docs/reste-a-faire.md" };
+const D = "/feature **Duels en concours Campagne** : les tableaux ne couvrent que TAEI.";
+assert.equal(agentTask("task", task), `${D} (docs/reste-a-faire.md, point 1)`);
+assert.equal(agentTask("task", { ...task, id: "#42" }), `${D} (docs/reste-a-faire.md, issue #42)`);
+assert.equal(agentTask("task", { ...task, id: "" }), `${D} (docs/reste-a-faire.md)`);
+assert.equal(agentTask("task", { ...task, description: "**A** : a\n\n  b" }), "/feature **A** : a b (docs/reste-a-faire.md, point 1)"); // internal blank line: one space
+assert.equal(footerText("task", "linux", null, false), "Ctrl+Entrée lancer le travail");
+assert.equal(footerText("task", "macos", null, false), "Cmd+Entrée lancer le travail");
+assert.equal(footerText("task", "linux", null, true), null);
 console.log("start ok");
 
 const ticket = (o) => ({ id: "POSO-127", url: "https://x.atlassian.net/browse/POSO-127", type: "Story",
