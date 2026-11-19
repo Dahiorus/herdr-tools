@@ -152,7 +152,7 @@ export default class StartWork extends View {
   row(i, n, t) {
     const [key, jira] = [i.key ?? i.id, this.tab === "jira"];
     return listRow(i, this.tab, n === this.at, t, (_e, cx) => this.rowClick(i, n, cx), this.tab === "pr" ? undefined : {
-      shown: n === this.at || this.hovered === key, busy: jira && this.busy === key, onStart: (cx) => this.start(i, cx),
+      shown: n === this.at || this.hovered === key, busy: jira && this.busy === key, onStart: (cx) => { this.input.focus(); this.start(i, cx); }, // its click stops before the root's
       onHover: (h, cx) => { this.hovered = h ? key : (this.hovered === key ? null : this.hovered); cx.notify(); },
     });
   }
@@ -186,6 +186,8 @@ export default class StartWork extends View {
       .id("start-work")
       .size_full().min_h(0).p(18).gap(10).bg(t.popover).text_size(13)
       .key_context("StartWork")
+      // A press in the window can take the keyboard off the filter input, and Escape would then reach nothing of ours.
+      .on_click(() => this.input.focus())
       .on_action("start_work_escape", (_e, cx) => this.escape(cx))
       .on_key_down((e, cx) => this.onKey(e, cx, items))
       .child(header(this.repo, this.tabs(), this.tab, this.lists, t, (id, cx) => { this.showTab(id); cx.notify(); }, () => this.dismiss()))

@@ -8,8 +8,8 @@ registerHooks({
 });
 
 // respond(cmd, args, opts) → {code, stdout, stderr} or throws (exec rejects).
-export const fake = { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], hovers: [], hidden: 0, files: {}, reads: [], writes: [], respond: () => ({ code: 0, stdout: "", stderr: "" }) };
-export const reset = (respond, files = {}) => Object.assign(fake, { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], hovers: [], hidden: 0, files, reads: [], writes: [], respond });
+export const fake = { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, focus: 0, hovers: [], hidden: 0, files: {}, reads: [], writes: [], respond: () => ({ code: 0, stdout: "", stderr: "" }) };
+export const reset = (respond, files = {}) => Object.assign(fake, { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, focus: 0, hovers: [], hidden: 0, files, reads: [], writes: [], respond });
 
 // herdr
 export const exec = async (cmd, args, opts) => { fake.calls.push([cmd, ...args]); return fake.respond(cmd, args, opts); };
@@ -28,11 +28,11 @@ export const readTextFile = async (path, opts) => {
 export const writeTextFile = async (path, text) => { fake.writes.push([path, text]); };
 export const [focused, spaces, home, appHome] = [() => null, () => [], () => "/home", () => "/app"];
 
-// gpui-kit / gpui-base: any element chain works; the root's on_key_down and on_action handlers, .id(...) arguments, on_hover handlers and invisible() calls are kept; when() runs its callback if true.
+// gpui-kit / gpui-base: any element chain works; the root's on_key_down and on_action handlers, .id(...) arguments, on_click handlers by the id set before them, on_hover handlers and invisible() calls are kept; when() runs its callback if true.
 const el = new Proxy(function () {}, {
   get: (_t, k) => (typeof k === "symbol" ? undefined : k === "on_key_down" ? (h) => { fake.keyDown = h; return el; }
     : k === "on_action" ? (a, h) => { fake.actions[a] = h; return el; }
-    : k === "id" ? (x) => { fake.ids.push(x); return el; } : k === "on_hover" ? (h) => { fake.hovers.push(h); return el; }
+    : k === "id" ? (x) => { fake.ids.push(x); return el; } : k === "on_click" ? (h) => { fake.clicks[fake.ids.at(-1)] = h; return el; } : k === "on_hover" ? (h) => { fake.hovers.push(h); return el; }
     : k === "invisible" ? () => { fake.hidden++; return el; } : k === "when" ? (c, f) => { if (c) f(el); return el; } : () => el),
   apply: () => el,
 });
@@ -43,7 +43,7 @@ export const ScrollHandle = { new: () => ({ scroll_to_item() {} }) };
 export const InputState = {
   new: () => {
     const on = {};
-    return { on: (e, f) => { on[e] = f; }, focus() {}, value: () => "", set_value() {}, fire: (e, ev, cx) => on[e](ev, cx) };
+    return { on: (e, f) => { on[e] = f; }, focus() { fake.focus++; }, value: () => "", set_value() {}, fire: (e, ev, cx) => on[e](ev, cx) };
   },
 };
 
