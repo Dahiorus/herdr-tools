@@ -1,7 +1,7 @@
 // Pieces of the Start work dialog: tab header, filter box, list rows (PR status tag on the right).
 import { div } from "gpui-kit";
 import { h_flex, v_flex, Input, TextView } from "gpui-base";
-import { STATUS_COLORS } from "./github.js";
+import { STATUS_COLORS, metaColor, groupLayout } from "./github.js";
 
 const statusTag = (label, t) => {
   const color = t[STATUS_COLORS[label]];
@@ -13,7 +13,7 @@ const startButton = (i, start, t) =>
   div().id(`sw-start-${i.key ?? i.id}`).flex_none().px(8).py(2).rounded(5).border_1().border_color(t.accent).text_size(11).text_color(t.accent)
     .when(!start.shown, (el) => el.invisible())
     .on_click((_e, cx) => { cx.stop_propagation(); start.onStart(cx); })
-    .child("Lancer");
+    .child(start.label);
 
 export const listRow = (i, tab, selected, t, onClick, start) =>
   h_flex().id(`sw-${tab}-${i.key ?? i.id}`).flex_none().h(32).px(10).gap(10).items_center().rounded(7).cursor_pointer()
@@ -23,9 +23,17 @@ export const listRow = (i, tab, selected, t, onClick, start) =>
     .when(Boolean(start), (el) => el.on_hover((h, cx) => start.onHover(h, cx)))
     .child(div().w(90).flex_none().truncate().text_color(t.accent).child(i.id))
     .child(div().flex_1().truncate().text_color(t.foreground).child(i.title))
-    .child(div().flex_none().text_size(11).text_color(t.dim).child(start?.busy ? "Prise en charge…" : i.meta))
+    .child(div().flex_none().text_size(11).text_color(t[metaColor(i)] ?? t.dim).when(Boolean(metaColor(i)), (el) => el.font_semibold())
+      .child(start?.busy ? "Prise en charge…" : i.meta))
     .when(Boolean(i.tag), (el) => el.child(statusTag(i.tag, t)))
     .when(Boolean(start), (el) => el.child(startButton(i, start, t)));
+
+export const groupTitle = ({ title, count }, t) =>
+  div().flex_none().px(10).pt(8).pb(2).text_size(11).text_color(t.dim).child(`${title.toUpperCase()} ${count}`);
+
+export const groupedRows = (items, row, t) => groupLayout(items).map((e) => (e.item ? row(e.item, e.n) : groupTitle(e, t)));
+
+export const tabList = (third) => [["pr", "PR"], ["issue", "Issues"], ...(third ? [[third, third === "jira" ? "Jira" : "Tâches"]] : [])];
 
 export const header = (repo, tabs, current, lists, t, onSelect, onClose) =>
   h_flex().items_center().gap(6)

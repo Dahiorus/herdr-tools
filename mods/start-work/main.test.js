@@ -40,12 +40,60 @@ const writes = () => fake.calls.filter((c) => c[0] === "herdr-app" || (c[0] === 
   await cx.settle();
   assert.deepEqual(fake.calls, [["xdg-open", "https://github.com/o/r/issues/12"]]);
 }
-// PR tab: Ctrl+Enter does nothing.
+const toReview = { id: "#5", title: "t", meta: "bob", tag: "Prête", group: "toReview", url: "https://github.com/o/r/pull/5" };
+const mine = { id: "#7", title: "t", meta: "1/2", tag: "Prête", group: "mine", url: "https://github.com/o/r/pull/7" };
+// PR to review: Ctrl+Enter starts /pr 5 review and closes the dialog.
 {
-  const { cx, enter } = dialog("pr", issue);
+  const { cx, enter } = dialog("pr", toReview);
   enter(true);
   await cx.settle();
-  assert.deepEqual(fake.calls, []);
+  assert.deepEqual(fake.calls, [TAB_NEW("#5", "/pr 5 review")]);
+  assert.deepEqual(fake.closed, ["ov"]);
+}
+// My PR: /pr 7 comments.
+{
+  const { cx, enter } = dialog("pr", mine);
+  enter(true);
+  await cx.settle();
+  assert.deepEqual(fake.calls, [TAB_NEW("#7", "/pr 7 comments")]);
+}
+// The row's button does the same as Ctrl+Enter.
+{
+  const { w, cx } = dialog("pr", toReview);
+  w.render();
+  fake.clicks["sw-start-#5"]({}, cx);
+  await cx.settle();
+  assert.deepEqual(fake.calls, [TAB_NEW("#5", "/pr 5 review")]);
+}
+// PR: tab.new fails → toast, dialog stays.
+{
+  const { cx, enter } = dialog("pr", mine, () => ({ code: 1, stdout: '{"error":"unknown space"}', stderr: "" }));
+  enter(true);
+  await cx.settle();
+  assert.equal(fake.toasts[0].title, "Agent non lancé");
+  assert.deepEqual(fake.closed, []);
+}
+// PR: Enter opens the browser.
+{
+  const { cx, enter } = dialog("pr", toReview);
+  enter();
+  await cx.settle();
+  assert.deepEqual(fake.calls, [["xdg-open", "https://github.com/o/r/pull/5"]]);
+}
+// Scroll counts the group titles: ↓ from #5 to #7 reveals child 3 (title, #5, title, #7).
+{
+  const { w, key } = dialog("pr", toReview);
+  w.lists.pr = [toReview, mine];
+  key("down");
+  assert.equal(fake.scrolls.at(-1), 3);
+}
+// ↑ from #7 back onto #5 reveals the À relire title (child 0).
+{
+  const { w, key } = dialog("pr", toReview);
+  w.lists.pr = [toReview, mine];
+  key("down");
+  key("up");
+  assert.equal(fake.scrolls.at(-1), 0);
 }
 
 // Ticket taken by Alice: confirmation, no Jira write until Enter.

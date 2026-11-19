@@ -1,6 +1,6 @@
 // Every outside call of Start work (gh, git, acli, herdr-app, browser).
 import { exec, notify, readTextFile, closeOverlay, props, window } from "herdr";
-import { GH_LISTS } from "./github.js";
+import { GH_LISTS, PR_GROUPS, ghRow, prRows } from "./github.js";
 import { ghCommand, json, sh } from "./run.js";
 import { firstLine, tabError, ticketRow, decide, takeSteps, takeWith } from "./start.js";
 import { toJql } from "./jira.js";
@@ -73,18 +73,26 @@ export async function assess(item, machine) {
   return { mine, ask: Boolean(d.ask) };
 }
 
-// Items of a gh list, or {error}. A repo gh can't see gets the account that was used.
+const ghList = (kind, repo, account, extra, on) =>
+  json(...ghCommand(account, [kind, "list", "--repo", repo, "--json", GH_LISTS[kind].fields, "--limit", "50", ...extra]), on);
+
+// Items of a gh list, or {error}. PRs come as two lists (to review, mine), tagged by group.
 export async function fetchGh(kind, repo, account, on, profiles) {
   try {
-    const list = GH_LISTS[kind];
-    const items = await json(...ghCommand(account, [kind, "list", "--repo", repo, "--json", list.fields, "--limit", "50"]), on);
-    return items.map((i) => ({ id: `#${i.number}`, title: i.title, meta: list.meta(i), tag: list.tag?.(i), url: i.url }));
+    if (kind !== "pr") return (await ghList(kind, repo, account, [], on)).map((raw) => ghRow(kind, raw));
+    const [toReview, mine] = await Promise.all(PR_GROUPS.map((g) => ghList(kind, repo, account, g.args, on)));
+    return prRows({ toReview, mine });
   } catch (e) {
-    if (!/Could not resolve to a Repository/.test(e.message)) return { error: e.message };
-    if (account) return { error: `Le compte gh ${account} (profil du projet) ne voit pas ${repo}.` };
-    const login = (await exec("gh", ["api", "user", "--jq", ".login"], on).catch(() => null))?.stdout.trim();
-    return { error: `Le compte gh actif${login ? ` (${login})` : ""} ne voit pas ${repo}, et aucun profil (${profiles}) ne couvre ce propriétaire. Change de compte avec gh auth switch.` };
+    return ghError(e, repo, account, on, profiles);
   }
+}
+
+// A repo gh can't see gets the account that was used.
+async function ghError(e, repo, account, on, profiles) {
+  if (!/Could not resolve to a Repository/.test(e.message)) return { error: e.message };
+  if (account) return { error: `Le compte gh ${account} (profil du projet) ne voit pas ${repo}.` };
+  const login = (await exec("gh", ["api", "user", "--jq", ".login"], on).catch(() => null))?.stdout.trim();
+  return { error: `Le compte gh actif${login ? ` (${login})` : ""} ne voit pas ${repo}, et aucun profil (${profiles}) ne couvre ce propriétaire. Change de compte avec gh auth switch.` };
 }
 
 // Opens the item in the browser, then closes the dialog; toasts on failure.

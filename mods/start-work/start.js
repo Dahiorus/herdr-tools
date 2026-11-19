@@ -1,4 +1,5 @@
 // Pure rules of "launch the work" in Start work (no gpui-kit/herdr import: tested under node).
+import { PR_GROUPS } from "./github.js";
 export const TARGET_STATUS = "En cours";
 
 export const firstLine = (r) => (r.stderr || r.stdout).trim().split("\n")[0];
@@ -24,8 +25,15 @@ export const skillFor = (type) => /^(bug|bogue)$/i.test(type) ? "/bugfix" : /^(e
 const taskRef = (id) => (id.startsWith("#") ? `, issue ${id}` : id ? `, point ${id}` : "");
 const taskTask = (t) => `/feature ${t.description.split("\n").map((l) => l.trim()).filter(Boolean).join(" ")} (${t.path}${taskRef(t.id)})`;
 
+const prGroup = (item) => PR_GROUPS.find((g) => g.id === item.group);
+
+export const launchKind = (tab, item) => (tab === "pr" ? prGroup(item).kind : tab);
+
+export const startLabel = (tab, item) => (tab === "pr" ? prGroup(item).button : "Lancer");
+
 export const agentTask = (kind, item) =>
-  kind === "task" ? taskTask(item) : kind === "jira" ? `${skillFor(item.type)} ${item.id} ${item.url}` : `/bugfix ${item.url}`;
+  kind === "task" ? taskTask(item) : kind === "jira" ? `${skillFor(item.type)} ${item.id} ${item.url}` :
+  kind === "review" || kind === "comments" ? `/pr ${item.id.replace("#", "")} ${kind}` : `/bugfix ${item.url}`;
 
 // Reason not to launch, or null. A ticket "à faire" (category new) is always launchable.
 export const refusal = (item, mine) => {
@@ -66,9 +74,14 @@ export async function takeWith(steps, run) {
   return null;
 }
 
-export const footerText = (tab, platform, confirming, empty) =>
-  confirming ? `${confirming.item.id} est attribué à ${confirming.item.assigneeName}. Le prendre ? Entrée oui · Échap non` :
-  tab === "pr" || empty ? null : `${tab === "task" ? "" : "Entrée ouvrir · "}${platform === "macos" ? "Cmd" : "Ctrl"}+Entrée lancer le travail`;
+const prFooter = (key, group) => `Entrée ouvrir · ${key}+Entrée ${prGroup({ group }).hint}`;
+
+export const footerText = (tab, platform, confirming, empty, group) => {
+  const key = platform === "macos" ? "Cmd" : "Ctrl";
+  return confirming ? `${confirming.item.id} est attribué à ${confirming.item.assigneeName}. Le prendre ? Entrée oui · Échap non` :
+    empty || (tab === "pr" && !group) ? null :
+    tab === "pr" ? prFooter(key, group) : `${tab === "task" ? "" : "Entrée ouvrir · "}${key}+Entrée lancer le travail`;
+};
 
 // `herdr-app do` prints {"error": …} on failure; else firstLine.
 export const tabError = (r) => {

@@ -1,6 +1,6 @@
 // Run: node mods/start-work/start.test.js
 import assert from "node:assert/strict";
-import { firstLine, decide, takeWith, agentTask, footerText, tabError, skillFor, refusal, askBeforeTaking, takeSteps, ticketRow, TARGET_STATUS } from "./start.js";
+import { firstLine, decide, takeWith, agentTask, launchKind, startLabel, footerText, tabError, skillFor, refusal, askBeforeTaking, takeSteps, ticketRow, TARGET_STATUS } from "./start.js";
 
 const issue = { id: "#12", url: "https://github.com/owner/repo/issues/12" };
 assert.equal(agentTask("issue", issue), "/bugfix https://github.com/owner/repo/issues/12");
@@ -88,3 +88,17 @@ assert.equal(footerText("pr", "linux", confirming), "POSO-127 est attribué à A
 // Nothing listed (loading, error, no Jira source, empty list or filter): no footer.
 assert.equal(footerText("issue", "linux", null, true), null);
 assert.equal(footerText("jira", "macos", null, true), null);
+
+const prItem = (group) => ({ id: "#42", group, url: "https://github.com/o/r/pull/42" });
+assert.equal(agentTask("review", prItem("toReview")), "/pr 42 review");
+assert.equal(agentTask("comments", prItem("mine")), "/pr 42 comments");
+assert.equal(launchKind("pr", prItem("toReview")), "review");
+assert.equal(launchKind("pr", prItem("mine")), "comments");
+assert.equal(launchKind("issue", issue), "issue");
+assert.equal(launchKind("task", task), "task");
+assert.equal(startLabel("pr", prItem("toReview")), "Relire");
+assert.equal(startLabel("pr", prItem("mine")), "Retours");
+assert.equal(startLabel("issue", issue), "Lancer");
+assert.equal(footerText("pr", "linux", null, false, "toReview"), "Entrée ouvrir · Ctrl+Entrée relire");
+assert.equal(footerText("pr", "macos", null, false, "mine"), "Entrée ouvrir · Cmd+Entrée traiter les retours");
+assert.equal(footerText("pr", "linux", null, true, "toReview"), null);

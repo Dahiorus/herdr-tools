@@ -8,8 +8,8 @@ registerHooks({
 });
 
 // respond(cmd, args, opts) → {code, stdout, stderr} or throws (exec rejects).
-export const fake = { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, focus: 0, hovers: [], hidden: 0, files: {}, reads: [], writes: [], respond: () => ({ code: 0, stdout: "", stderr: "" }) };
-export const reset = (respond, files = {}) => Object.assign(fake, { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, focus: 0, hovers: [], hidden: 0, files, reads: [], writes: [], respond });
+export const fake = { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, scrolls: [], focus: 0, hovers: [], hidden: 0, files: {}, reads: [], writes: [], respond: () => ({ code: 0, stdout: "", stderr: "" }) };
+export const reset = (respond, files = {}) => Object.assign(fake, { calls: [], toasts: [], closed: [], keyDown: null, actions: {}, ids: [], clicks: {}, scrolls: [], focus: 0, hovers: [], hidden: 0, files, reads: [], writes: [], respond });
 
 // herdr
 export const exec = async (cmd, args, opts) => { fake.calls.push([cmd, ...args]); return fake.respond(cmd, args, opts); };
@@ -39,7 +39,7 @@ const el = new Proxy(function () {}, {
 export class View {}
 export const [div, v_flex, h_flex, Input] = [el, el, el, el]; // callable, and Input.new(...) too
 export const TextView = { markdown: () => el };
-export const ScrollHandle = { new: () => ({ scroll_to_item() {} }) };
+export const ScrollHandle = { new: () => ({ scroll_to_item: (i) => fake.scrolls.push(i) }) };
 export const InputState = {
   new: () => {
     const on = {};
