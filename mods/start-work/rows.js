@@ -1,6 +1,6 @@
 // Pieces of the Start work dialog: tab header, filter box, list rows (PR status tag on the right).
 import { div } from "gpui-kit";
-import { h_flex, Input } from "gpui-base";
+import { h_flex, v_flex, Input, TextView } from "gpui-base";
 import { STATUS_COLORS } from "./github.js";
 
 const statusTag = (label, t) => {
@@ -10,13 +10,13 @@ const statusTag = (label, t) => {
 };
 
 const startButton = (i, start, t) =>
-  div().id(`sw-start-${i.id}`).flex_none().px(8).py(2).rounded(5).border_1().border_color(t.accent).text_size(11).text_color(t.accent)
+  div().id(`sw-start-${i.key ?? i.id}`).flex_none().px(8).py(2).rounded(5).border_1().border_color(t.accent).text_size(11).text_color(t.accent)
     .when(!start.shown, (el) => el.invisible())
     .on_click((_e, cx) => { cx.stop_propagation(); start.onStart(cx); })
     .child("Lancer");
 
 export const listRow = (i, tab, selected, t, onClick, start) =>
-  h_flex().id(`sw-${tab}-${i.id}`).flex_none().h(32).px(10).gap(10).items_center().rounded(7).cursor_pointer()
+  h_flex().id(`sw-${tab}-${i.key ?? i.id}`).flex_none().h(32).px(10).gap(10).items_center().rounded(7).cursor_pointer()
     .when(selected, (el) => el.bg(t.hover))
     .hover((s) => s.bg(t.hover))
     .on_click(onClick)
@@ -48,3 +48,16 @@ export const filterBox = (input, t) =>
     .child(Input.new(input).flex_1().h_full().text_size(12.8).text_color(t.foreground));
 
 export const footer = (text, t) => div().text_size(11).text_color(t.dim).child(text);
+
+export const listBody = (rows, scroll) =>
+  v_flex().id("sw-list").min_h(0).overflow_y_scrollbar().track_scroll(scroll).children(rows);
+
+export const descriptionPanel = (item, t) =>
+  v_flex().id("sw-desc").w(340).h_full().flex_none().p(10).rounded(7).bg(t.background).overflow_y_scrollbar()
+    .child(TextView.markdown("sw-md-" + item.key, item.description));
+
+export const nextTab = (tabs, tab, back) => {
+  const at = tabs.findIndex(([id]) => id === tab);
+  const step = back ? tabs.length - 1 : 1;
+  return tabs[(at + step) % tabs.length][0];
+};
