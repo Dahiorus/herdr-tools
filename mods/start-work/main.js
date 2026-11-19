@@ -1,6 +1,6 @@
 // Start work: the focused terminal's GitHub repo, its open PRs and issues (gh),
 // and the Jira tickets tied to that repo (acli). Tab switches lists, type to
-// filter, ↑/↓ and Enter open the item, Ctrl+Enter or Lancer starts an agent, Esc closes.
+// filter, ↑/↓ and Enter open the item, Ctrl+Enter or Lancer starts an agent (on a PR: Relire or Retours by group), Esc closes.
 // Jira source per repo, in .config.json (not tracked): a project key, a filter
 // id (filter=123 or its URL) or raw JQL, typed once in the Jira tab.
 
@@ -12,8 +12,9 @@ import { profileAccount, noJira } from "./profile.js";
 import { matches } from "./filter.js";
 import { taskList, repoWithoutJira, taskName } from "./tasks.js";
 import { fetchGh, fetchTasks, launchAgent, originRepo, openItem, assess, takeTicket } from "./launch.js";
-import { agentTask, footerText } from "./start.js";
-import { listRow, listBody, header, filterBox, footer, descriptionPanel, nextTab } from "./rows.js";
+import { agentTask, footerText, launchKind, startLabel } from "./start.js";
+import { listIndex } from "./github.js";
+import { listRow, listBody, header, filterBox, footer, descriptionPanel, nextTab, groupedRows, tabList } from "./rows.js";
 
 const PROFILES = () => `${home()}/.claude/profiles.json`;
 export default class StartWork extends View {
@@ -62,8 +63,6 @@ export default class StartWork extends View {
     await Promise.all([this.loadGh("pr", account, on, cx), this.loadGh("issue", account, on, cx), this.loadThird(noJiraProfile, on, cx)]);
   }
 
-  tabs() { return [["pr", "PR"], ["issue", "Issues"], ...(this.third ? [[this.third, this.third === "jira" ? "Jira" : "Tâches"]] : [])]; }
-
   // Tâches if the profile has no Jira, or if the repo has no Jira source and a readable remaining-work file with
   // a Features section; Jira otherwise. A Jira source is not worth reading the file: it skips fetchTasks.
   async loadThird(noJiraProfile, on, cx) {
@@ -77,6 +76,7 @@ export default class StartWork extends View {
     await loadJira(this, cx);
   }
 
+  tabs() { return tabList(this.third); }
   async loadGh(kind, account, on, cx) { this.lists[kind] = await fetchGh(kind, this.repo, account, on, PROFILES()); cx.notify(); }
 
   items() {
@@ -99,13 +99,13 @@ export default class StartWork extends View {
   }
 
   select(at) {
+    this.scroll.scroll_to_item(listIndex(this.items(), Math.max(0, at), at < this.at));
     this.at = Math.max(0, at); // an empty list gives -1
-    this.scroll.scroll_to_item(this.at);
   }
 
   start(item, cx) {
-    if (!item || this.busy || this.confirming || this.tab === "pr") return;
-    if (this.tab !== "jira") return this.launch(this.tab === "task" ? "task" : "issue", item, cx);
+    if (!item || this.busy || this.confirming) return;
+    if (this.tab !== "jira") return this.launch(launchKind(this.tab, item), item, cx);
     this.busy = item.id; cx.notify();
     cx.spawn(async (cx) => {
       const d = await assess(item, this.machine);
@@ -151,8 +151,8 @@ export default class StartWork extends View {
 
   row(i, n, t) {
     const [key, jira] = [i.key ?? i.id, this.tab === "jira"];
-    return listRow(i, this.tab, n === this.at, t, (_e, cx) => this.rowClick(i, n, cx), this.tab === "pr" ? undefined : {
-      shown: n === this.at || this.hovered === key, busy: jira && this.busy === key, onStart: (cx) => { this.input.focus(); this.start(i, cx); }, // its click stops before the root's
+    return listRow(i, this.tab, n === this.at, t, (_e, cx) => this.rowClick(i, n, cx), {
+      label: startLabel(this.tab, i), shown: n === this.at || this.hovered === key, busy: jira && this.busy === key, onStart: (cx) => { this.input.focus(); this.start(i, cx); }, // its click stops before the root's
       onHover: (h, cx) => { this.hovered = h ? key : (this.hovered === key ? null : this.hovered); cx.notify(); },
     });
   }
@@ -181,7 +181,7 @@ export default class StartWork extends View {
     const l = this.lists[this.tab];
     const c = this.confirming;
     const status = l == null ? "Chargement…" : l.error ?? (items.length ? null : "Rien d'ouvert");
-    const hint = footerText(this.tab, window()?.platform, c, Boolean(status));
+    const hint = footerText(this.tab, window()?.platform, c, Boolean(status), items[this.at]?.group);
     return v_flex()
       .id("start-work")
       .size_full().min_h(0).p(18).gap(10).bg(t.popover).text_size(13)
@@ -193,8 +193,8 @@ export default class StartWork extends View {
       .child(header(this.repo, this.tabs(), this.tab, this.lists, t, (id, cx) => { this.showTab(id); cx.notify(); }, () => this.dismiss()))
       .child(filterBox(this.input, t))
       .child(status ? div().p(10).text_color(t.muted).child(status) : this.tab === "task"
-        ? h_flex().flex_1().min_h(0).gap(10).child(listBody(items.map((i, n) => this.row(i, n, t)), this.scroll).flex_1().min_w(0).h_full()).child(descriptionPanel(items[this.at], t))
-        : listBody(items.map((i, n) => this.row(i, n, t)), this.scroll).flex_1())
+        ? h_flex().flex_1().min_h(0).gap(10).child(listBody(groupedRows(items, (i, n) => this.row(i, n, t), t), this.scroll).flex_1().min_w(0).h_full()).child(descriptionPanel(items[this.at], t))
+        : listBody(groupedRows(items, (i, n) => this.row(i, n, t), t), this.scroll).flex_1())
       .when(Boolean(hint), (el) => el.child(footer(hint, t)));
   }
 }

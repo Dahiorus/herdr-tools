@@ -4,11 +4,13 @@
 
 Responsabilité : montrer, pour le repo GitHub du terminal focalisé, le travail ouvert sur lequel se lancer (PR,
 issues, tickets Jira, ou tâches du reste à faire pour un repo sans Jira), l'ouvrir dans le navigateur ou lancer le
-travail dessus · Dans le code : `mods/start-work/` ·
+travail dessus (pour une PR : relire, ou traiter les retours) · Dans le code : `mods/start-work/` ·
 Dépend de : GitHub (en aval, via `gh`), Jira (en aval, via `acli`), profils Claude (en aval, `~/.claude/profiles.json`,
 pour le compte `gh` et pour savoir si le repo est sans Jira), Reste à faire (en aval, fichier du repo tenu par la
 skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la frontière), Herdr (en aval, commande
 `tab.new`, pour l'onglet de l'agent)
+
+« À ne pas dire » vaut pour le texte français (interface, docs), pas pour les noms anglais du code.
 
 | Terme | Définition métier | Dans le code | À ne pas dire |
 |---|---|---|---|
@@ -21,7 +23,17 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 | Ticket | Élément Jira de la source Jira du repo | onglet `jira`, `workitem` côté `acli` | issue (réservé à GitHub) |
 | Issue | Issue GitHub ouverte du repo | onglet `issue` | ticket |
 | Ouvrir | Afficher une PR, une issue ou un ticket dans le navigateur | `open(item)` | lancer |
-| Lancer le travail | Depuis une issue, un ticket ou une tâche, démarrer un agent sur la skill qui convient (`/bugfix`, `/feature`) | `start(item)` | ouvrir (réservé au navigateur) |
+| Lancer le travail | Depuis une issue, un ticket, une tâche ou une PR de mes PR ou à relire, démarrer un agent sur la skill qui convient (`/bugfix`, `/feature`, `/pr <n> comments`, `/pr <n> review`) | `start(item)` | ouvrir (réservé au navigateur) |
+| Moi | Le compte GitHub du profil du repo, sinon le compte `gh` actif | `account` (`profileAccount`), `@me` sous son jeton | l'utilisateur |
+| Groupe de PR | Partie de l'onglet PR qui rassemble les PR ouvertes selon mon rôle : à relire, puis mes PR ; les PR des autres qui ne me demandent pas de relecture ne sont pas affichées | `group`, `PR_GROUPS` (`github.js`) | section (réservé au reste à faire), catégorie |
+| Mes PR | PR ouvertes du repo dont je suis l'auteur | `--author @me` | les miennes (dans l'interface) |
+| PR à relire | PR ouverte d'un autre dont la relecture m'est demandée, à moi ou à une de mes équipes, et pas encore rendue (GitHub retire la demande quand je publie un avis, l'auteur peut la redemander) | `--search "review-requested:@me"` | PR en review, review en attente |
+| Relecteur | Personne qui a publié un avis sur une PR, autre que son auteur | `reviews[].author.login` | reviewer |
+| Approbation | Pour un relecteur, son dernier avis décisif quand c'est « Approuvé » ; un simple commentaire ne l'annule pas, une demande de changements oui | `myPrMeta` (`reviews`, `state` `APPROVED`, hors `COMMENTED` et `PENDING`) | approval, validation |
+| Prête pour la QA | Une de mes PR qui a 2 approbations ou plus | `APPROVALS_FOR_QA` | « Prête » seul (statut de PR), validée |
+| Retours | Fils et commentaires de relecture en attente de ma réponse sur une de mes PR, tels que `/pr comments` les trouve | — | remarques |
+| Traiter les retours | Lancer le travail sur une de mes PR : agent sur `/pr <n> comments` (corrige, pousse, répond, redemande la relecture) | kind `comments` (`PR_GROUPS`, `github.js`) | répondre (l'agent fait plus) |
+| Relire | Lancer le travail sur une PR à relire : agent sur `/pr <n> review` (relit et publie l'avis, ou approuve) | kind `review` | reviewer, faire une review |
 | Agent | Session Claude démarrée dans un nouvel onglet Herdr du repo, la skill et l'élément en première demande | `tab.new {argv, task}` | — |
 | Type de ticket | Catégorie Jira d'un ticket (Bug, Story, Tâche…) ; décide de la skill lancée | champ `issuetype` de `acli` | type d'issue ; « tâche » seul (réservé au reste à faire) |
 | Prise en charge | Pour un ticket : me l'attribuer et le passer au statut « En cours », avant de lancer l'agent | `takeTicket` ; `acli jira workitem assign --assignee @me`, `transition --status` | — |
@@ -34,5 +46,6 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 | Section | Rubrique du reste à faire où se range une tâche (Features, Corrections…) | titre `##` du fichier | catégorie, type |
 | Description du besoin | Texte complet d'une tâche (titre compris), affiché à droite de la liste pour la tâche sélectionnée | `descriptionPanel` | détail, résumé |
 
-Invariants : la liste ne montre que du travail ouvert ; une PR brouillon est une PR ouverte ; Start work ne modifie
+Invariants : la liste ne montre que du travail ouvert ; une PR brouillon est une PR ouverte ; une PR est dans un seul
+groupe de PR ; les approbations se comptent une par relecteur, sur son dernier avis décisif ; Start work ne modifie
 jamais le reste à faire (seule la skill `/todo` le tient) ; un numéro de tâche est celui du fichier, jamais renuméroté.

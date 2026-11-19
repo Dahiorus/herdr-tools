@@ -1,7 +1,7 @@
 // Run: node mods/start-work/launch.test.js — the acli and herdr-app calls of launch.js, against fake.js.
 import assert from "node:assert/strict";
 import { fake, reset } from "./fake.js";
-const { launchAgent, takeTicket, isMine, assess, fetchTasks } = await import("./launch.js");
+const { launchAgent, takeTicket, isMine, assess, fetchTasks, fetchGh } = await import("./launch.js");
 
 const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
 const ticket = (o = {}) => ({ id: "POSO-127", type: "Story", statusName: "À faire", statusCategory: "new", assigneeName: null, url: "https://x/browse/POSO-127", ...o });
@@ -80,5 +80,32 @@ reset(() => { throw new Error("machine injoignable"); });
 assert.deepEqual(await fetchTasks("o/r", ON), { error: "Reste à faire illisible : git : machine injoignable" });
 reset((c, a) => (a[0] === "rev-parse" ? ok("/r\n") : ok("src/a.js\0")));
 assert.deepEqual(await fetchTasks("o/r", ON), { error: "Pas de reste à faire dans o/r. `/todo add` le crée dans docs/reste-a-faire.md." });
+
+// fetchGh (caractérisation): gh list mapped to rows; three error messages.
+const ghOut = (items) => () => ok(JSON.stringify(items));
+reset(ghOut([{ number: 12, title: "Bug", author: { login: "alice" }, url: "u12" }]));
+assert.deepEqual(await fetchGh("issue", "o/r", undefined, {}, "/p.json"), [{ id: "#12", title: "Bug", meta: "alice", tag: undefined, url: "u12" }]);
+assert.deepEqual(fake.calls, [["gh", "issue", "list", "--repo", "o/r", "--json", "number,title,author,url", "--limit", "50"]]);
+const LIST = (extra) => ["gh", "pr", "list", "--repo", "o/r", "--json", "number,title,author,url,isDraft,reviews", "--limit", "50", ...extra];
+const raw = (number, login) => ({ number, title: `T${number}`, author: { login }, url: `u${number}`, isDraft: false, reviews: [] });
+reset((_c, a) => ok(JSON.stringify(a.includes("--author") ? [raw(7, "me")] : [raw(5, "bob")])));
+const rows = await fetchGh("pr", "o/r", undefined, {}, "/p.json");
+assert.deepEqual(rows.map((r) => [r.id, r.group, r.meta]), [["#5", "toReview", "bob"], ["#7", "mine", "0/2"]]);
+assert.equal(rows.length, 2); // tab counter: PR 2
+assert.deepEqual(fake.calls.sort(), [LIST(["--author", "@me"]), LIST(["--search", "review-requested:@me"])].sort()); // no general list
+reset(() => ok("[]"));
+assert.deepEqual(await fetchGh("pr", "o/r", undefined, {}, "/p.json"), []);
+reset((_c, a) => (a.includes("--author") ? ok("[]") : { code: 1, stdout: "", stderr: "HTTP 502" }));
+assert.deepEqual(await fetchGh("pr", "o/r", "me", {}, "/p.json"), { error: "HTTP 502" });
+reset((_c, a) => (a.includes("--search") ? ok("[]") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
+assert.deepEqual(await fetchGh("pr", "o/r", "me", {}, "/p.json"), { error: "Le compte gh me (profil du projet) ne voit pas o/r." });
+reset((_c, a) => (a[0] === "api" ? ok("carol\n") : a.includes("--author") ? ok("[]") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
+assert.deepEqual(await fetchGh("pr", "o/r", undefined, {}, "/p.json"), { error: "Le compte gh actif (carol) ne voit pas o/r, et aucun profil (/p.json) ne couvre ce propriétaire. Change de compte avec gh auth switch." });
+reset(() => ({ code: 1, stdout: "", stderr: "HTTP 502" }));
+assert.deepEqual(await fetchGh("issue", "o/r", "me", {}, "/p.json"), { error: "HTTP 502" });
+reset(() => ({ code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
+assert.deepEqual(await fetchGh("issue", "o/r", "me", {}, "/p.json"), { error: "Le compte gh me (profil du projet) ne voit pas o/r." });
+reset((c, a) => (a[0] === "api" ? ok("carol\n") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
+assert.deepEqual(await fetchGh("issue", "o/r", undefined, {}, "/p.json"), { error: "Le compte gh actif (carol) ne voit pas o/r, et aucun profil (/p.json) ne couvre ce propriétaire. Change de compte avec gh auth switch." });
 
 console.log("launch ok");
