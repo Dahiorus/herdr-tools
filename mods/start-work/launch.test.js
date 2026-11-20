@@ -83,10 +83,30 @@ reset((c, a) => (a[0] === "rev-parse" ? ok("/r\n") : ok("src/a.js\0")));
 assert.deepEqual(await fetchTasks("o/r", ON), { error: "Pas de reste à faire dans o/r. `/todo add` le crée dans docs/reste-a-faire.md." });
 
 // fetchGh (caractérisation): gh list mapped to rows; three error messages.
-const ghOut = (items) => () => ok(JSON.stringify(items));
-reset(ghOut([{ number: 12, title: "Bug", author: { login: "alice" }, url: "u12" }]));
+{
+const ISSUES = ["gh", "issue", "list", "--repo", "o/r", "--json", "number,title,author,url", "--limit", "50"];
+const FIXING = ["gh", "pr", "list", "--repo", "o/r", "--json", "number,isDraft,closingIssuesReferences", "--limit", "100"];
+const isFixing = (a) => a[0] === "pr";
+const issue12 = { number: 12, title: "Bug", author: { login: "alice" }, url: "u12" };
+const fixes12 = [{ number: 40, isDraft: false, closingIssuesReferences: [{ number: 12, url: "u12" }] }];
+reset((_c, a) => ok(JSON.stringify(isFixing(a) ? fixes12 : [issue12, { ...issue12, number: 13, url: "u13" }])));
+const issueRowsOut = await fetchGh("issue", "o/r", undefined, {}, "/p.json");
+assert.deepEqual(issueRowsOut.map((r) => [r.id, r.group, r.tag]), [["#13", "toFix", undefined], ["#12", "fixing", "PR #40"]]);
+assert.deepEqual(fake.calls.sort(), [FIXING, ISSUES].sort()); // open PRs only: no --state
+assert.deepEqual(fake.toasts, []);
+// fixing PRs failed: issues as today, a warning toast
+reset((_c, a) => (isFixing(a) ? { code: 1, stdout: "", stderr: "HTTP 502" } : ok(JSON.stringify([issue12]))));
 assert.deepEqual(await fetchGh("issue", "o/r", undefined, {}, "/p.json"), [{ id: "#12", title: "Bug", meta: "alice", tag: undefined, url: "u12" }]);
-assert.deepEqual(fake.calls, [["gh", "issue", "list", "--repo", "o/r", "--json", "number,title,author,url", "--limit", "50"]]);
+assert.deepEqual(fake.toasts, [{ title: "PR de correction non détectées", body: "HTTP 502", level: "warning" }]);
+// both failed: the issue list's error alone, no toast
+reset(() => ({ code: 1, stdout: "", stderr: "HTTP 502" }));
+assert.deepEqual(await fetchGh("issue", "o/r", "me", {}, "/p.json"), { error: "HTTP 502" });
+assert.deepEqual(fake.toasts, []);
+// profile account: the PR list goes through the same sh -c wrapper
+reset((_c, a) => ok("[]"));
+await fetchGh("issue", "o/r", "me", {}, "/p.json");
+assert.ok(fake.calls.some((c) => c[0] === "sh" && c[4] === "me" && c.slice(5).join() === FIXING.slice(1).join()));
+}
 const LIST = (extra) => ["gh", "pr", "list", "--repo", "o/r", "--json", "number,title,author,url,isDraft,reviews", "--limit", "50", ...extra];
 const raw = (number, login) => ({ number, title: `T${number}`, author: { login }, url: `u${number}`, isDraft: false, reviews: [] });
 const GRAPHQL = ["gh", "api", "graphql", "-f", `query=${THREADS_QUERY}`, "-f", "q=repo:o/r is:pr is:open author:@me"];

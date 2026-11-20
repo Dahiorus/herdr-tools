@@ -1,12 +1,13 @@
 // Pieces of the Start work dialog: tab header, filter box, list rows (PR status tag on the right).
 import { div } from "gpui-kit";
 import { h_flex, v_flex, Input, TextView } from "gpui-base";
-import { STATUS_COLORS, metaColor, groupLayout } from "./github.js";
+import { tagColor, metaColor, groupLayout } from "./github.js";
 
-const statusTag = (label, t) => {
-  const color = t[STATUS_COLORS[label]];
-  return h_flex().w(76).flex_none().justify_end()
-    .child(div().px(6).rounded(4).border_1().border_color(color).text_size(11).text_color(color).child(label));
+const statusTag = (i, t) => {
+  const column = h_flex().w(76).flex_none().justify_end();
+  if (!i.tag) return column; // empty: grouped rows keep their columns aligned
+  const color = t[tagColor(i)];
+  return column.child(div().px(6).rounded(4).border_1().border_color(color).text_size(11).text_color(color).child(i.tag));
 };
 
 const startButton = (i, start, t) => h_flex().w(80).flex_none().justify_end().child( // fixed width: the columns stay aligned
@@ -25,7 +26,7 @@ export const listRow = (i, tab, selected, t, onClick, start) =>
     .child(div().flex_1().truncate().text_color(t.foreground).child(i.title))
     .child(div().w(150).flex_none().truncate().text_right().text_size(11).text_color(t[metaColor(i)] ?? t.dim).when(Boolean(metaColor(i)), (el) => el.font_semibold())
       .child(start?.busy ? "Prise en charge…" : i.meta))
-    .when(Boolean(i.tag), (el) => el.child(statusTag(i.tag, t)))
+    .when(Boolean(i.tag || i.group), (el) => el.child(statusTag(i, t)))
     .when(Boolean(start), (el) => el.child(startButton(i, start, t)));
 
 export const groupTitle = ({ title, count }, t) =>

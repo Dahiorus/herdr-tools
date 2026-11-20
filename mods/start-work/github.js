@@ -23,11 +23,13 @@ export const PR_LISTS = { toReview: ["--search", "review-requested:@me"], mine: 
 
 const COMMENTS = { kind: "comments", button: "Retours", hint: "traiter les retours" };
 // mineAll: my PRs when the threads query failed (no split into Retours / Mes PR).
-export const PR_GROUPS = [
+export const GROUPS = [
   { id: "toReview", label: "À relire", kind: "review", button: "Relire", hint: "relire" },
   { id: "feedback", label: "Retours sur mes PR", ...COMMENTS },
   { id: "mine", label: "Mes PR" },
   { id: "mineAll", label: "Mes PR", ...COMMENTS },
+  { id: "toFix", label: "À corriger", kind: "issue", button: "Lancer", hint: "lancer le travail" },
+  { id: "fixing", label: "En cours de correction" },
 ];
 
 // My open PRs with their review threads. 50 PRs and the last 100 threads per PR: more is unreadable anyway, and the newest threads are the pending ones (issue #10).
@@ -86,7 +88,7 @@ export const myPrMeta = (reviews) => {
 };
 
 const mineGroup = (raw, feedback) => (feedback === null ? "mineAll" : feedback.has(raw.number) ? "feedback" : "mine");
-const rank = (row) => PR_GROUPS.findIndex((g) => g.id === row.group);
+const rank = (row) => GROUPS.findIndex((g) => g.id === row.group);
 
 // feedback: Set of my PR numbers with pending threads, or null when the threads query failed.
 export const prRows = ({ toReview, mine, feedback }) => {
@@ -97,9 +99,39 @@ export const prRows = ({ toReview, mine, feedback }) => {
   ].sort((a, b) => rank(a) - rank(b));
 };
 
+// shortcut: 100 open PRs only; a PR of another repo is not seen; a PR aimed at a non-default branch is not linked by GitHub (except through "Development").
+export const fixingArgs = (repo) => ["pr", "list", "--repo", repo, "--json", "number,isDraft,closingIssuesReferences", "--limit", "100"];
+
+// Issue URL → the open PRs that close it, in the order of prs. URLs are canonical, so a renamed repo still matches and another repo's issue never does.
+const addFixing = (map, ref, pr) => map.set(ref.url, [...(map.get(ref.url) ?? []), { number: pr.number, isDraft: pr.isDraft }]);
+const addPr = (map, pr) => (pr.closingIssuesReferences ?? []).forEach((ref) => addFixing(map, ref, pr));
+export const fixingPrs = (prs) => {
+  const map = new Map();
+  for (const pr of prs) addPr(map, pr);
+  return map;
+};
+
+// The first fixing PR, in its status color, and how many others.
+export const fixTag = (prs) => ({
+  tag: `PR #${prs[0].number}` + (prs.length > 1 ? ` +${prs.length - 1}` : ""),
+  tagColor: STATUS_COLORS[prStatus(prs[0])],
+});
+
+const issueRow = (raw, fixing) => {
+  const prs = fixing.get(raw.url);
+  return { ...ghRow("issue", raw), ...(prs ? { group: "fixing", ...fixTag(prs) } : { group: "toFix" }) };
+};
+
+// fixing: Map from fixingPrs, or null when the PR list failed (rows stay ungrouped).
+export const issueRows = (raws, fixing) =>
+  fixing === null ? raws.map((r) => ghRow("issue", r)) : raws.map((r) => issueRow(r, fixing)).sort((a, b) => rank(a) - rank(b));
+
+// A row's tag color: the one it carries, else its PR status color.
+export const tagColor = (row) => row.tagColor ?? STATUS_COLORS[row.tag];
+
 // The list's children: a title before the first row of each group, then the rows.
 const titleBefore = (items, n) => {
-  const group = PR_GROUPS.find((g) => g.id === items[n].group);
+  const group = GROUPS.find((g) => g.id === items[n].group);
   const first = group && items[n - 1]?.group !== group.id;
   return first ? [{ title: group.label, count: items.filter((i) => i.group === group.id).length }] : [];
 };

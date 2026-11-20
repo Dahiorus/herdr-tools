@@ -40,6 +40,23 @@ const writes = () => fake.calls.filter((c) => c[0] === "herdr-app" || (c[0] === 
   await cx.settle();
   assert.deepEqual(fake.calls, [["xdg-open", "https://github.com/o/r/issues/12"]]);
 }
+// Issue to fix: Ctrl+Enter starts /bugfix as before.
+{
+  const { cx, enter } = dialog("issue", { ...issue, group: "toFix" });
+  enter(true);
+  await cx.settle();
+  assert.deepEqual(fake.calls, [TAB_NEW("#12", "/bugfix https://github.com/o/r/issues/12")]);
+}
+// Issue being fixed: Ctrl+Enter starts nothing, Enter still opens it.
+{
+  const { cx, enter } = dialog("issue", { ...issue, group: "fixing", tag: "PR #40" });
+  enter(true);
+  await cx.settle();
+  assert.deepEqual(fake.calls, []);
+  enter();
+  await cx.settle();
+  assert.deepEqual(fake.calls, [["xdg-open", "https://github.com/o/r/issues/12"]]);
+}
 const toReview = { id: "#5", title: "t", meta: "bob", tag: "Prête", group: "toReview", url: "https://github.com/o/r/pull/5" };
 const mine = { id: "#7", title: "t", meta: "1/2", tag: "Prête", group: "mine", url: "https://github.com/o/r/pull/7" };
 const feedback = { ...mine, group: "feedback" };

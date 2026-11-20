@@ -22,10 +22,13 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 | Source Jira | Ce qui désigne les tickets Jira du repo : clé de projet, filtre ou JQL | `jiraSource`, `.config.json` | board |
 | Ticket | Élément Jira de la source Jira du repo | onglet `jira`, `workitem` côté `acli` | issue (réservé à GitHub) |
 | Issue | Issue GitHub ouverte du repo | onglet `issue` | ticket |
+| PR de correction | PR ouverte (brouillon ou prête) qui fermera une issue à sa fusion, parce que sa description le dit (« Fixes #n », « Closes #n »…) ou qu'on l'a liée à la main dans « Development » sur GitHub ; une simple mention « #n » n'en fait pas une | `closingIssuesReferences` de `gh pr list` (PR ouvertes seulement), issue comparée au repo | PR liée, PR associée (une mention suffit à « lier ») |
+| Issue en cours de correction | Issue qui a au moins une PR de correction ; rangée dans le groupe d'issues « En cours de correction » | groupe `fixing` | issue « En cours » (statut réservé aux tickets Jira), issue prise |
+| Groupe d'issues | Partie de l'onglet Issues : « À corriger » (issues sans PR de correction), puis « En cours de correction » ; aucun groupe si la détection des PR de correction a échoué | groupes `toFix`, `fixing` (`GROUPS`) | section, catégorie |
 | Ouvrir | Afficher une PR, une issue ou un ticket dans le navigateur | `open(item)` | lancer |
-| Lancer le travail | Depuis une issue, un ticket, une tâche, une PR à relire, ou une de mes PR qui a des retours (toutes, si la détection a échoué), démarrer un agent sur la skill qui convient (`/bugfix`, `/feature`, `/pr <n> comments`, `/pr <n> review`) | `start(item)` | ouvrir (réservé au navigateur) |
+| Lancer le travail | Depuis une issue à corriger (toutes, si la détection des PR de correction a échoué), un ticket, une tâche, une PR à relire, ou une de mes PR qui a des retours (toutes, si la détection a échoué), démarrer un agent sur la skill qui convient (`/bugfix`, `/feature`, `/pr <n> comments`, `/pr <n> review`) | `start(item)` | ouvrir (réservé au navigateur) |
 | Moi | Le compte GitHub du profil du repo, sinon le compte `gh` actif | `account` (`profileAccount`), `@me` sous son jeton | l'utilisateur |
-| Groupe de PR | Partie de l'onglet PR qui rassemble les PR ouvertes selon mon rôle : à relire, puis retours sur mes PR, puis mes PR ; les PR des autres qui ne me demandent pas de relecture ne sont pas affichées | `group`, `PR_GROUPS` (`github.js`) | section (réservé au reste à faire), catégorie |
+| Groupe de PR | Partie de l'onglet PR qui rassemble les PR ouvertes selon mon rôle : à relire, puis retours sur mes PR, puis mes PR ; les PR des autres qui ne me demandent pas de relecture ne sont pas affichées | `group`, `GROUPS` (`github.js`) | section (réservé au reste à faire), catégorie |
 | Mes PR | PR ouvertes du repo dont je suis l'auteur. Le groupe Mes PR ne garde que celles sans fil en attente (toutes si la détection des retours a échoué) | `--author @me` ; groupes `mine`, `mineAll` | les miennes (dans l'interface) |
 | PR à relire | PR ouverte d'un autre dont la relecture m'est demandée, à moi ou à une de mes équipes, et pas encore rendue (GitHub retire la demande quand je publie un avis, l'auteur peut la redemander) | `--search "review-requested:@me"` | PR en review, review en attente |
 | Relecteur | Personne qui a publié un avis sur une PR, autre que son auteur | `reviews[].author.login` | reviewer |
@@ -36,8 +39,8 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 | Fil résolu | Fil de relecture marqué résolu sur GitHub ; il n'attend plus rien | `isResolved: true` | fermé, clos |
 | Commentaire hors fil | Retour publié hors d'un fil de relecture : commentaire de la conversation de la PR, ou texte d'un avis | `issues/<n>/comments`, `body` des `reviews` | commentaire de fil |
 | Fil en attente | Fil de relecture d'une de mes PR qui attend ma réponse : non résolu, pas ouvert par un bot, dont le dernier commentaire n'est pas de moi, ou mon propre fil seul, sans réponse ; mêmes fils que `/pr comments` | `isPending` (`github.js`) ; `reviewThreads` (`isResolved`, `first`, `last`, `totalCount`) | retour (un retour peut aussi être hors fil) |
-| Retours sur mes PR | Groupe de PR de celles de mes PR qui ont au moins un fil en attente ; elles n'apparaissent plus dans le groupe Mes PR | groupe `feedback` (`PR_GROUPS`), `feedbackNumbers` | Retour sur mes PR (singulier) |
-| Traiter les retours | Lancer le travail sur une de mes PR qui a des retours (toutes, si la détection a échoué) : agent sur `/pr <n> comments` (corrige, pousse, répond, redemande la relecture) | kind `comments` (`PR_GROUPS`, `github.js`) | répondre (l'agent fait plus) |
+| Retours sur mes PR | Groupe de PR de celles de mes PR qui ont au moins un fil en attente ; elles n'apparaissent plus dans le groupe Mes PR | groupe `feedback` (`GROUPS`), `feedbackNumbers` | Retour sur mes PR (singulier) |
+| Traiter les retours | Lancer le travail sur une de mes PR qui a des retours (toutes, si la détection a échoué) : agent sur `/pr <n> comments` (corrige, pousse, répond, redemande la relecture) | kind `comments` (`GROUPS`, `github.js`) | répondre (l'agent fait plus) |
 | Relire | Lancer le travail sur une PR à relire : agent sur `/pr <n> review` (relit et publie l'avis, ou approuve) | kind `review` | reviewer, faire une review |
 | Agent | Session Claude démarrée dans un nouvel onglet Herdr du repo, la skill et l'élément en première demande | `tab.new {argv, task}` | — |
 | Type de ticket | Catégorie Jira d'un ticket (Bug, Story, Tâche…) ; décide de la skill lancée | champ `issuetype` de `acli` | type d'issue ; « tâche » seul (réservé au reste à faire) |
@@ -52,5 +55,5 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 | Description du besoin | Texte complet d'une tâche (titre compris), affiché à droite de la liste pour la tâche sélectionnée | `descriptionPanel` | détail, résumé |
 
 Invariants : la liste ne montre que du travail ouvert ; une PR brouillon est une PR ouverte ; une PR est dans un seul
-groupe de PR (une de mes PR est dans Retours sur mes PR ou dans Mes PR, jamais les deux) ; les approbations se comptent une par relecteur, sur son dernier avis décisif ; Start work ne modifie
-jamais le reste à faire (seule la skill `/todo` le tient) ; un numéro de tâche est celui du fichier, jamais renuméroté.
+groupe de PR (une de mes PR est dans Retours sur mes PR ou dans Mes PR, jamais les deux) ; une issue est dans un seul groupe d'issues ; les approbations se comptent une par relecteur, sur son dernier avis décisif ; Start work ne modifie
+jamais le reste à faire (seule la skill `/todo` le tient) ; un numéro de tâche est celui du fichier, jamais renuméroté ; une PR fusionnée ou fermée n'est jamais une PR de correction.
