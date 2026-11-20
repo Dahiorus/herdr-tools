@@ -1,6 +1,6 @@
 // Start work: the focused terminal's GitHub repo, its open PRs and issues (gh),
 // and the Jira tickets tied to that repo (acli). Tab switches lists, type to
-// filter, ↑/↓ and Enter open the item, Ctrl+Enter or Lancer starts an agent (on a PR: Relire or Retours by group), Esc closes.
+// filter, ↑/↓ and Enter open the item, Ctrl+Enter or Lancer starts an agent (on a PR: Relire, or Retours on my PRs with pending threads), Esc closes.
 // Jira source per repo, in .config.json (not tracked): a project key, a filter
 // id (filter=123 or its URL) or raw JQL, typed once in the Jira tab.
 
@@ -104,7 +104,7 @@ export default class StartWork extends View {
   }
 
   start(item, cx) {
-    if (!item || this.busy || this.confirming) return;
+    if (!item || this.busy || this.confirming || !launchKind(this.tab, item)) return;
     if (this.tab !== "jira") return this.launch(launchKind(this.tab, item), item, cx);
     this.busy = item.id; cx.notify();
     cx.spawn(async (cx) => {
@@ -150,9 +150,9 @@ export default class StartWork extends View {
   dismiss() { if (!this.busy) closeOverlay(props().overlay); } // not close(): Herdr calls that when the overlay goes
 
   row(i, n, t) {
-    const [key, jira] = [i.key ?? i.id, this.tab === "jira"];
+    const [key, jira, label] = [i.key ?? i.id, this.tab === "jira", startLabel(this.tab, i)];
     return listRow(i, this.tab, n === this.at, t, (_e, cx) => this.rowClick(i, n, cx), {
-      label: startLabel(this.tab, i), shown: n === this.at || this.hovered === key, busy: jira && this.busy === key, onStart: (cx) => { this.input.focus(); this.start(i, cx); }, // its click stops before the root's
+      label, shown: Boolean(label) && (n === this.at || this.hovered === key), busy: jira && this.busy === key, onStart: (cx) => { this.input.focus(); this.start(i, cx); }, // its click stops before the root's
       onHover: (h, cx) => { this.hovered = h ? key : (this.hovered === key ? null : this.hovered); cx.notify(); },
     });
   }

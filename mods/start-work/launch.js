@@ -1,6 +1,6 @@
 // Every outside call of Start work (gh, git, acli, herdr-app, browser).
 import { exec, notify, readTextFile, closeOverlay, props, window } from "herdr";
-import { GH_LISTS, PR_GROUPS, ghRow, prRows } from "./github.js";
+import { GH_LISTS, PR_LISTS, THREADS_QUERY, threadsSearch, feedbackNumbers, ghRow, prRows } from "./github.js";
 import { ghCommand, json, sh } from "./run.js";
 import { firstLine, tabError, ticketRow, decide, takeSteps, takeWith } from "./start.js";
 import { toJql } from "./jira.js";
@@ -76,14 +76,34 @@ export async function assess(item, machine) {
 const ghList = (kind, repo, account, extra, on) =>
   json(...ghCommand(account, [kind, "list", "--repo", repo, "--json", GH_LISTS[kind].fields, "--limit", "50", ...extra]), on);
 
-// Items of a gh list, or {error}. PRs come as two lists (to review, mine), tagged by group.
+// Items of a gh list, or {error}. PRs come as two lists (to review, mine) plus the threads query, tagged by group.
 export async function fetchGh(kind, repo, account, on, profiles) {
   try {
     if (kind !== "pr") return (await ghList(kind, repo, account, [], on)).map((raw) => ghRow(kind, raw));
-    const [toReview, mine] = await Promise.all(PR_GROUPS.map((g) => ghList(kind, repo, account, g.args, on)));
-    return prRows({ toReview, mine });
+    return await fetchPrs(repo, account, on);
   } catch (e) {
     return ghError(e, repo, account, on, profiles);
+  }
+}
+
+async function fetchPrs(repo, account, on) {
+  const [toReview, mine, feedback] = await Promise.all([
+    ghList("pr", repo, account, PR_LISTS.toReview, on),
+    ghList("pr", repo, account, PR_LISTS.mine, on),
+    fetchFeedback(repo, account, on),
+  ]);
+  // Only once both lists came: a list failure rejects first and shows no threads toast.
+  if (feedback.error) notify({ title: "Retours non détectés", body: feedback.error, level: "warning" });
+  return prRows({ toReview, mine, feedback: feedback.error ? null : feedback.numbers });
+}
+
+// Never rejects: {numbers} (PRs of mine with a pending thread) or {error}.
+async function fetchFeedback(repo, account, on) {
+  try {
+    const args = ["api", "graphql", "-f", `query=${THREADS_QUERY}`, "-f", `q=${threadsSearch(repo)}`];
+    return { numbers: feedbackNumbers(await json(...ghCommand(account, args), on)) };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 

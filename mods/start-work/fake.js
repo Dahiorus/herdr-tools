@@ -28,12 +28,12 @@ export const readTextFile = async (path, opts) => {
 export const writeTextFile = async (path, text) => { fake.writes.push([path, text]); };
 export const [focused, spaces, home, appHome] = [() => null, () => [], () => "/home", () => "/app"];
 
-// gpui-kit / gpui-base: any element chain works; the root's on_key_down and on_action handlers, .id(...) arguments, on_click handlers by the id set before them, on_hover handlers and invisible() calls are kept; when() runs its callback if true.
+// gpui-kit / gpui-base: any element chain works; the root's on_key_down and on_action handlers, .id(...) arguments, on_click handlers by the id set before them, on_hover handlers and invisible() calls are kept; child(null | undefined) throws, as in the runtime; when() runs its callback if true.
 const el = new Proxy(function () {}, {
   get: (_t, k) => (typeof k === "symbol" ? undefined : k === "on_key_down" ? (h) => { fake.keyDown = h; return el; }
     : k === "on_action" ? (a, h) => { fake.actions[a] = h; return el; }
     : k === "id" ? (x) => { fake.ids.push(x); return el; } : k === "on_click" ? (h) => { fake.clicks[fake.ids.at(-1)] = h; return el; } : k === "on_hover" ? (h) => { fake.hovers.push(h); return el; }
-    : k === "invisible" ? () => { fake.hidden++; return el; } : k === "when" ? (c, f) => { if (c) f(el); return el; } : () => el),
+    : k === "child" ? (c) => { if (c == null) throw new Error("child(value) expects an element, a string, or an entity"); return el; } : k === "invisible" ? () => { fake.hidden++; return el; } : k === "when" ? (c, f) => { if (c) f(el); return el; } : () => el),
   apply: () => el,
 });
 export class View {}

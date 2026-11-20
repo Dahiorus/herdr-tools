@@ -74,7 +74,7 @@ export async function takeWith(steps, run) {
   return null;
 }
 
-const prFooter = (key, group) => `Entrée ouvrir · ${key}+Entrée ${prGroup({ group }).hint}`;
+const prFooter = (key, group) => { const { hint } = prGroup({ group }); return hint ? `Entrée ouvrir · ${key}+Entrée ${hint}` : "Entrée ouvrir"; };
 
 export const footerText = (tab, platform, confirming, empty, group) => {
   const key = platform === "macos" ? "Cmd" : "Ctrl";
