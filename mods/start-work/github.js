@@ -30,11 +30,11 @@ export const PR_GROUPS = [
   { id: "mineAll", label: "Mes PR", ...COMMENTS },
 ];
 
-// My open PRs with their review threads. shortcut: 50 PRs, 100 threads per PR; paginate if a repo has more.
+// My open PRs with their review threads. 50 PRs and the last 100 threads per PR: more is unreadable anyway, and the newest threads are the pending ones (issue #10).
 export const THREADS_QUERY = `query($q: String!) {
   viewer { login }
   search(query: $q, type: ISSUE, first: 50) {
-    nodes { ... on PullRequest { number reviewThreads(first: 100) { nodes {
+    nodes { ... on PullRequest { number reviewThreads(last: 100) { nodes {
       isResolved
       all: comments { totalCount }
       first: comments(first: 1) { nodes { author { __typename login } } }
