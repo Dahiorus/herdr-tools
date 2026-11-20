@@ -1,6 +1,7 @@
 // Run: node mods/start-work/launch.test.js — the acli and herdr-app calls of launch.js, against fake.js.
 import assert from "node:assert/strict";
 import { fake, reset } from "./fake.js";
+const { THREADS_QUERY } = await import("./github.js");
 const { launchAgent, takeTicket, isMine, assess, fetchTasks, fetchGh } = await import("./launch.js");
 
 const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
@@ -88,15 +89,34 @@ assert.deepEqual(await fetchGh("issue", "o/r", undefined, {}, "/p.json"), [{ id:
 assert.deepEqual(fake.calls, [["gh", "issue", "list", "--repo", "o/r", "--json", "number,title,author,url", "--limit", "50"]]);
 const LIST = (extra) => ["gh", "pr", "list", "--repo", "o/r", "--json", "number,title,author,url,isDraft,reviews", "--limit", "50", ...extra];
 const raw = (number, login) => ({ number, title: `T${number}`, author: { login }, url: `u${number}`, isDraft: false, reviews: [] });
-reset((_c, a) => ok(JSON.stringify(a.includes("--author") ? [raw(7, "me")] : [raw(5, "bob")])));
+const GRAPHQL = ["gh", "api", "graphql", "-f", `query=${THREADS_QUERY}`, "-f", "q=repo:o/r is:pr is:open author:@me"];
+const isGraphql = (a) => a[0] === "api" && a[1] === "graphql";
+const threads = (n) => ({ data: { viewer: { login: "me" }, search: { nodes: [{ number: n, reviewThreads: { nodes: [{ isResolved: false, all: { totalCount: 1 }, first: { nodes: [{ author: { __typename: "User" } }] }, last: { nodes: [{ author: { login: "alice" } }] } }] } }] } } });
+const prs = (a) => ok(JSON.stringify(a.includes("--author") ? [raw(7, "me")] : [raw(5, "bob")]));
+reset((_c, a) => (isGraphql(a) ? ok(JSON.stringify(threads(7))) : prs(a)));
 const rows = await fetchGh("pr", "o/r", undefined, {}, "/p.json");
-assert.deepEqual(rows.map((r) => [r.id, r.group, r.meta]), [["#5", "toReview", "bob"], ["#7", "mine", "0/2"]]);
+assert.deepEqual(rows.map((r) => [r.id, r.group, r.meta]), [["#5", "toReview", "bob"], ["#7", "feedback", "0/2"]]);
 assert.equal(rows.length, 2); // tab counter: PR 2
-assert.deepEqual(fake.calls.sort(), [LIST(["--author", "@me"]), LIST(["--search", "review-requested:@me"])].sort()); // no general list
-reset(() => ok("[]"));
+assert.deepEqual(fake.calls.sort(), [LIST(["--author", "@me"]), LIST(["--search", "review-requested:@me"]), GRAPHQL].sort()); // no general list
+reset((_c, a) => (isGraphql(a) ? ok(JSON.stringify(threads(0))) : ok("[]")));
 assert.deepEqual(await fetchGh("pr", "o/r", undefined, {}, "/p.json"), []);
-reset((_c, a) => (a.includes("--author") ? ok("[]") : { code: 1, stdout: "", stderr: "HTTP 502" }));
-assert.deepEqual(await fetchGh("pr", "o/r", "me", {}, "/p.json"), { error: "HTTP 502" });
+// threads failed: Mes PR as before, a warning toast
+reset((_c, a) => (isGraphql(a) ? { code: 1, stdout: "", stderr: "HTTP 502" } : prs(a)));
+assert.deepEqual((await fetchGh("pr", "o/r", undefined, {}, "/p.json")).map((r) => r.group), ["toReview", "mineAll"]);
+assert.deepEqual(fake.toasts, [{ title: "Retours non détectés", body: "HTTP 502", level: "warning" }]);
+reset((_c, a) => (isGraphql(a) ? ok("{}") : prs(a)));
+assert.deepEqual((await fetchGh("pr", "o/r", undefined, {}, "/p.json")).map((r) => r.group), ["toReview", "mineAll"]);
+assert.equal(fake.toasts.length, 1);
+assert.equal(fake.toasts[0].title, "Retours non détectés");
+// a list failed: its error, no threads toast
+reset((_c, a) => (isGraphql(a) ? { code: 1, stdout: "", stderr: "HTTP 502" } : a.includes("--author") ? { code: 1, stdout: "", stderr: "HTTP 502" } : ok("[]")));
+assert.deepEqual(await fetchGh("pr", "o/r", undefined, {}, "/p.json"), { error: "HTTP 502" });
+assert.deepEqual(fake.toasts, []);
+// profile account: the threads query goes through the same sh -c wrapper as the lists
+reset((_c, a) => (a.includes("graphql") ? ok(JSON.stringify(threads(7))) : prs(a)));
+await fetchGh("pr", "o/r", "me", {}, "/p.json");
+assert.ok(fake.calls.some((c) => c[0] === "sh" && c[1] === "-c" && c[3] === "sh" && c[4] === "me" && c.slice(5).join() === GRAPHQL.slice(1).join()));
+assert.ok(fake.calls.some((c) => c[0] === "sh" && c[4] === "me" && c[5] === "pr")); // lists too
 reset((_c, a) => (a.includes("--search") ? ok("[]") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
 assert.deepEqual(await fetchGh("pr", "o/r", "me", {}, "/p.json"), { error: "Le compte gh me (profil du projet) ne voit pas o/r." });
 reset((_c, a) => (a[0] === "api" ? ok("carol\n") : a.includes("--author") ? ok("[]") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));

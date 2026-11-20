@@ -7,7 +7,7 @@ export const STATUS_COLORS = { Prête: "ansi2", Brouillon: "muted" };
 // The meta of my PR that needs me (ready for QA, changes requested), so it stands out (other meta stay dim).
 export const META_COLORS = { "Prête pour la QA": "ansi2", "Changements demandés": "ansi1" };
 // Only my PRs' meta gets a color: a Jira status could carry the same words.
-export const metaColor = (i) => (i.group === "mine" ? META_COLORS[i.meta] : undefined);
+export const metaColor = (i) => (["feedback", "mine", "mineAll"].includes(i.group) ? META_COLORS[i.meta] : undefined);
 
 export const authorLogin = (item) => item.author?.login ?? "";
 
@@ -18,10 +18,48 @@ export const GH_LISTS = {
   issue: { fields: "number,title,author,url", meta: authorLogin },
 };
 
+// The gh pr list arguments of the two lists; the groups below are cut from them.
+export const PR_LISTS = { toReview: ["--search", "review-requested:@me"], mine: ["--author", "@me"] };
+
+const COMMENTS = { kind: "comments", button: "Retours", hint: "traiter les retours" };
+// mineAll: my PRs when the threads query failed (no split into Retours / Mes PR).
 export const PR_GROUPS = [
-  { id: "toReview", label: "À relire", args: ["--search", "review-requested:@me"], kind: "review", button: "Relire", hint: "relire" },
-  { id: "mine", label: "Mes PR", args: ["--author", "@me"], kind: "comments", button: "Retours", hint: "traiter les retours" },
+  { id: "toReview", label: "À relire", kind: "review", button: "Relire", hint: "relire" },
+  { id: "feedback", label: "Retours sur mes PR", ...COMMENTS },
+  { id: "mine", label: "Mes PR" },
+  { id: "mineAll", label: "Mes PR", ...COMMENTS },
 ];
+
+// My open PRs with their review threads. shortcut: 50 PRs, 100 threads per PR; paginate if a repo has more.
+export const THREADS_QUERY = `query($q: String!) {
+  viewer { login }
+  search(query: $q, type: ISSUE, first: 50) {
+    nodes { ... on PullRequest { number reviewThreads(first: 100) { nodes {
+      isResolved
+      all: comments { totalCount }
+      first: comments(first: 1) { nodes { author { __typename login } } }
+      last: comments(last: 1) { nodes { author { login } } }
+    } } } }
+  }
+}`;
+export const threadsSearch = (repo) => `repo:${repo} is:pr is:open author:@me`;
+
+// A thread I owe an answer to (the threads of /pr comments).
+export const isPending = (thread, me) => {
+  const lower = (c) => c?.author?.login?.toLowerCase();
+  const mine = lower(thread.last?.nodes?.[0]) === me.toLowerCase();
+  if (thread.isResolved) return false;
+  if (thread.first?.nodes?.[0]?.author?.__typename === "Bot") return false;
+  return !mine || thread.all?.totalCount === 1;
+};
+
+// Numbers of my PRs with a pending thread; throws when the response lacks search.nodes.
+export const feedbackNumbers = (response) => {
+  const nodes = response?.data?.search?.nodes;
+  if (!Array.isArray(nodes)) throw new Error("réponse GraphQL sans search.nodes");
+  const me = response.data.viewer?.login ?? "";
+  return new Set(nodes.filter((n) => (n.reviewThreads?.nodes ?? []).some((t) => isPending(t, me))).map((n) => n.number));
+};
 
 export const APPROVALS_FOR_QA = 2;
 
@@ -47,12 +85,16 @@ export const myPrMeta = (reviews) => {
   return approvals >= APPROVALS_FOR_QA ? "Prête pour la QA" : `${approvals}/${APPROVALS_FOR_QA}`;
 };
 
-export const prRows = ({ toReview, mine }) => {
+const mineGroup = (raw, feedback) => (feedback === null ? "mineAll" : feedback.has(raw.number) ? "feedback" : "mine");
+const rank = (row) => PR_GROUPS.findIndex((g) => g.id === row.group);
+
+// feedback: Set of my PR numbers with pending threads, or null when the threads query failed.
+export const prRows = ({ toReview, mine, feedback }) => {
   const mineNumbers = new Set(mine.map((raw) => raw.number));
   return [
     ...toReview.filter((raw) => !mineNumbers.has(raw.number)).map((raw) => ({ ...ghRow("pr", raw), group: "toReview" })),
-    ...mine.map((raw) => ({ ...ghRow("pr", raw), meta: myPrMeta(raw.reviews ?? []), group: "mine" })),
-  ];
+    ...mine.map((raw) => ({ ...ghRow("pr", raw), meta: myPrMeta(raw.reviews ?? []), group: mineGroup(raw, feedback) })),
+  ].sort((a, b) => rank(a) - rank(b));
 };
 
 // The list's children: a title before the first row of each group, then the rows.

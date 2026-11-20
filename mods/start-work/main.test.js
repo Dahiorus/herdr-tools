@@ -42,6 +42,7 @@ const writes = () => fake.calls.filter((c) => c[0] === "herdr-app" || (c[0] === 
 }
 const toReview = { id: "#5", title: "t", meta: "bob", tag: "Prête", group: "toReview", url: "https://github.com/o/r/pull/5" };
 const mine = { id: "#7", title: "t", meta: "1/2", tag: "Prête", group: "mine", url: "https://github.com/o/r/pull/7" };
+const feedback = { ...mine, group: "feedback" };
 // PR to review: Ctrl+Enter starts /pr 5 review and closes the dialog.
 {
   const { cx, enter } = dialog("pr", toReview);
@@ -50,9 +51,9 @@ const mine = { id: "#7", title: "t", meta: "1/2", tag: "Prête", group: "mine", 
   assert.deepEqual(fake.calls, [TAB_NEW("#5", "/pr 5 review")]);
   assert.deepEqual(fake.closed, ["ov"]);
 }
-// My PR: /pr 7 comments.
+// My PR with feedback: /pr 7 comments.
 {
-  const { cx, enter } = dialog("pr", mine);
+  const { cx, enter } = dialog("pr", feedback);
   enter(true);
   await cx.settle();
   assert.deepEqual(fake.calls, [TAB_NEW("#7", "/pr 7 comments")]);
@@ -67,11 +68,23 @@ const mine = { id: "#7", title: "t", meta: "1/2", tag: "Prête", group: "mine", 
 }
 // PR: tab.new fails → toast, dialog stays.
 {
-  const { cx, enter } = dialog("pr", mine, () => ({ code: 1, stdout: '{"error":"unknown space"}', stderr: "" }));
+  const { cx, enter } = dialog("pr", feedback, () => ({ code: 1, stdout: '{"error":"unknown space"}', stderr: "" }));
   enter(true);
   await cx.settle();
   assert.equal(fake.toasts[0].title, "Agent non lancé");
   assert.deepEqual(fake.closed, []);
+}
+// Mes PR without feedback: no button, Ctrl+Enter starts nothing, Enter still opens.
+{
+  const { w, cx, enter } = dialog("pr", mine);
+  w.render();
+  assert.equal(fake.hidden, 1); // the row's button is invisible
+  enter(true);
+  await cx.settle();
+  assert.deepEqual(fake.calls, []);
+  enter();
+  await cx.settle();
+  assert.deepEqual(fake.calls, [["xdg-open", "https://github.com/o/r/pull/7"]]);
 }
 // PR: Enter opens the browser.
 {
@@ -249,6 +262,7 @@ const FEATURES = "# Reste à faire\n\n## Features\n\n1. **Duels en concours Camp
 const respondLoad = (ls) => (c, a) => {
   if (c === "git") return a[0] === "remote" ? ok("git@github.com:o/r.git\n") : a[0] === "rev-parse" ? ok("/repo\n") : ok(ls);
   if (c === "acli") return a[1] === "auth" ? ok("Site: x.atlassian.net") : ok("[]");
+  if (a.includes("graphql")) return ok('{"data":{"viewer":{"login":"me"},"search":{"nodes":[]}}}'); // my PRs' threads: none
   return ok("[]"); // gh pr/issue list
 };
 async function loaded(files, ls = "docs/reste-a-faire.md\0") {
