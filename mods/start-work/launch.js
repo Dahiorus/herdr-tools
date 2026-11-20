@@ -1,6 +1,6 @@
 // Every outside call of Start work (gh, git, acli, herdr-app, browser).
 import { exec, notify, readTextFile, closeOverlay, props, window } from "herdr";
-import { GH_LISTS, PR_LISTS, THREADS_QUERY, threadsSearch, feedbackNumbers, ghRow, prRows } from "./github.js";
+import { GH_LISTS, PR_LISTS, THREADS_QUERY, threadsSearch, feedbackNumbers, prRows, fixingArgs, fixingPrs, issueRows } from "./github.js";
 import { ghCommand, json, sh } from "./run.js";
 import { firstLine, tabError, ticketRow, decide, takeSteps, takeWith } from "./start.js";
 import { toJql } from "./jira.js";
@@ -76,13 +76,28 @@ export async function assess(item, machine) {
 const ghList = (kind, repo, account, extra, on) =>
   json(...ghCommand(account, [kind, "list", "--repo", repo, "--json", GH_LISTS[kind].fields, "--limit", "50", ...extra]), on);
 
-// Items of a gh list, or {error}. PRs come as two lists (to review, mine) plus the threads query, tagged by group.
+// Items of a gh list, or {error}. PRs come as two lists (to review, mine) plus the threads query, tagged by group; issues come with the open PRs that close them.
 export async function fetchGh(kind, repo, account, on, profiles) {
   try {
-    if (kind !== "pr") return (await ghList(kind, repo, account, [], on)).map((raw) => ghRow(kind, raw));
-    return await fetchPrs(repo, account, on);
+    return kind === "pr" ? await fetchPrs(repo, account, on) : await fetchIssues(repo, account, on);
   } catch (e) {
     return ghError(e, repo, account, on, profiles);
+  }
+}
+
+async function fetchIssues(repo, account, on) {
+  const [issues, fixing] = await Promise.all([ghList("issue", repo, account, [], on), fetchFixing(repo, account, on)]);
+  // Only once the list came: a list failure rejects first and shows no toast.
+  if (fixing.error) notify({ title: "PR de correction non détectées", body: fixing.error, level: "warning" });
+  return issueRows(issues, fixing.error ? null : fixing.prs);
+}
+
+// Never rejects: {prs} (Map issue URL -> fixing PR) or {error}.
+async function fetchFixing(repo, account, on) {
+  try {
+    return { prs: fixingPrs(await json(...ghCommand(account, fixingArgs(repo)), on)) };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 

@@ -107,3 +107,14 @@ assert.equal(footerText("pr", "macos", null, false, "feedback"), "Entrée ouvrir
 assert.equal(footerText("pr", "linux", null, false, "mineAll"), "Entrée ouvrir · Ctrl+Entrée traiter les retours");
 assert.equal(footerText("pr", "linux", null, false, "mine"), "Entrée ouvrir");
 assert.equal(footerText("pr", "linux", null, true, "toReview"), null);
+{
+  const toFix = { ...issue, group: "toFix" };
+  const fixingIssue = { ...issue, group: "fixing" };
+  assert.equal(launchKind("issue", toFix), "issue");
+  assert.equal(launchKind("issue", fixingIssue), undefined);
+  assert.equal(startLabel("issue", toFix), "Lancer");
+  assert.equal(startLabel("issue", fixingIssue), undefined);
+  assert.equal(footerText("issue", "linux", null, false, "toFix"), "Entrée ouvrir · Ctrl+Entrée lancer le travail");
+  assert.equal(footerText("issue", "macos", null, false, "fixing"), "Entrée ouvrir");
+  assert.equal(agentTask(launchKind("issue", toFix), toFix), "/bugfix https://github.com/owner/repo/issues/12");
+}

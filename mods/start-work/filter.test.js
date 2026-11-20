@@ -12,4 +12,5 @@ assert.ok(matches(draft, "#12"));
 assert.ok(!matches(draft, "prête"));
 assert.ok(matches(ticket, "bob"));
 assert.ok(!matches(ticket, "undefined")); // a missing tag is not the text "undefined"
+assert.ok(matches({ id: "#34", title: "Login", meta: "alice", tag: "PR #12" }, "#12")); // fixing PR in the tag
 console.log("filter ok");

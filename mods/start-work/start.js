@@ -1,5 +1,5 @@
 // Pure rules of "launch the work" in Start work (no gpui-kit/herdr import: tested under node).
-import { PR_GROUPS } from "./github.js";
+import { GROUPS } from "./github.js";
 export const TARGET_STATUS = "En cours";
 
 export const firstLine = (r) => (r.stderr || r.stdout).trim().split("\n")[0];
@@ -25,11 +25,11 @@ export const skillFor = (type) => /^(bug|bogue)$/i.test(type) ? "/bugfix" : /^(e
 const taskRef = (id) => (id.startsWith("#") ? `, issue ${id}` : id ? `, point ${id}` : "");
 const taskTask = (t) => `/feature ${t.description.split("\n").map((l) => l.trim()).filter(Boolean).join(" ")} (${t.path}${taskRef(t.id)})`;
 
-const prGroup = (item) => PR_GROUPS.find((g) => g.id === item.group);
+const groupOf = (item) => GROUPS.find((g) => g.id === item.group);
 
-export const launchKind = (tab, item) => (tab === "pr" ? prGroup(item).kind : tab);
+export const launchKind = (tab, item) => (tab === "pr" || item.group ? groupOf(item).kind : tab);
 
-export const startLabel = (tab, item) => (tab === "pr" ? prGroup(item).button : "Lancer");
+export const startLabel = (tab, item) => (tab === "pr" || item.group ? groupOf(item).button : "Lancer");
 
 export const agentTask = (kind, item) =>
   kind === "task" ? taskTask(item) : kind === "jira" ? `${skillFor(item.type)} ${item.id} ${item.url}` :
@@ -74,13 +74,13 @@ export async function takeWith(steps, run) {
   return null;
 }
 
-const prFooter = (key, group) => { const { hint } = prGroup({ group }); return hint ? `Entrée ouvrir · ${key}+Entrée ${hint}` : "Entrée ouvrir"; };
+const groupFooter = (key, group) => { const { hint } = groupOf({ group }); return hint ? `Entrée ouvrir · ${key}+Entrée ${hint}` : "Entrée ouvrir"; };
 
 export const footerText = (tab, platform, confirming, empty, group) => {
   const key = platform === "macos" ? "Cmd" : "Ctrl";
   return confirming ? `${confirming.item.id} est attribué à ${confirming.item.assigneeName}. Le prendre ? Entrée oui · Échap non` :
     empty || (tab === "pr" && !group) ? null :
-    tab === "pr" ? prFooter(key, group) : `${tab === "task" ? "" : "Entrée ouvrir · "}${key}+Entrée lancer le travail`;
+    group ? groupFooter(key, group) : `${tab === "task" ? "" : "Entrée ouvrir · "}${key}+Entrée lancer le travail`;
 };
 
 // `herdr-app do` prints {"error": …} on failure; else firstLine.

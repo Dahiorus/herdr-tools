@@ -1,6 +1,6 @@
 // Run: node mods/start-work/github.test.js
 import assert from "node:assert/strict";
-import { prStatus, authorLogin, GH_LISTS, STATUS_COLORS, META_COLORS, metaColor, myPrMeta, prRows, groupLayout, listIndex, isPending, feedbackNumbers, PR_LISTS, threadsSearch } from "./github.js";
+import { prStatus, authorLogin, GH_LISTS, STATUS_COLORS, META_COLORS, metaColor, myPrMeta, prRows, groupLayout, listIndex, isPending, feedbackNumbers, PR_LISTS, threadsSearch, fixingArgs, fixingPrs, fixTag, issueRows, tagColor } from "./github.js";
 
 assert.equal(prStatus({ isDraft: true }), "Brouillon");
 assert.equal(prStatus({ isDraft: false }), "Prête");
@@ -91,4 +91,34 @@ assert.equal(listIndex([r5, f7, m8], 1, true), 2); // up onto #7 shows its title
 assert.deepEqual(groupLayout([f7]), [{ title: "Retours sur mes PR", count: 1 }, { item: f7, n: 0 }]); // filtered: only Retours left
 assert.equal(metaColor({ group: "feedback", meta: "Prête pour la QA" }), "ansi2");
 assert.equal(metaColor({ group: "mineAll", meta: "Changements demandés" }), "ansi1");
+{ // block: the names below (pr, rows...) would clash with the tests above
+// Issues being fixed: open PRs → fixing PRs per issue of this repo.
+const url = (number, repo = "o/r") => `https://github.com/${repo}/issues/${number}`;
+const ref = (number, repo) => ({ number, url: url(number, repo) });
+const pr = (number, isDraft, refs) => ({ number, isDraft, closingIssuesReferences: refs });
+assert.deepEqual(fixingArgs("o/r"), ["pr", "list", "--repo", "o/r", "--json", "number,isDraft,closingIssuesReferences", "--limit", "100"]);
+const fixing = fixingPrs([pr(12, false, [ref(34), ref(38)]), pr(14, true, [ref(34)]), pr(15, false, [ref(36, "x/y")])]);
+assert.deepEqual(fixing.get(url(34)), [{ number: 12, isDraft: false }, { number: 14, isDraft: true }]);
+assert.deepEqual(fixing.get(url(38)), [{ number: 12, isDraft: false }]); // one PR, two issues
+assert.equal(fixing.has(url(36)), false); // other repo: its URL differs
+assert.equal(fixingPrs([pr(12, false, null), { number: 13 }, pr(16, false, [])]).size, 0); // no refs
+// Tag: first PR, its status color, +others
+assert.deepEqual(fixTag([{ number: 12, isDraft: false }]), { tag: "PR #12", tagColor: "ansi2" });
+assert.deepEqual(fixTag([{ number: 13, isDraft: true }]), { tag: "PR #13", tagColor: "muted" });
+assert.deepEqual(fixTag([{ number: 12, isDraft: false }, { number: 14, isDraft: true }]), { tag: "PR #12 +1", tagColor: "ansi2" });
+assert.equal(tagColor({ tag: "PR #13", tagColor: "muted" }), "muted");
+assert.equal(tagColor({ tag: "Prête" }), "ansi2"); // PR tab unchanged
+assert.equal(tagColor({ tag: "Brouillon" }), "muted");
+// Rows: À corriger first, GitHub order inside a group
+const issue = (number) => ({ number, title: `I${number}`, author: { login: "alice" }, url: `u${number}` });
+const rows = issueRows([issue(37), issue(35), issue(34), issue(33)], new Map([["u37", [{ number: 12, isDraft: false }]], ["u34", [{ number: 13, isDraft: true }]]]));
+assert.deepEqual(rows.map((r) => [r.id, r.group, r.tag]), [["#35", "toFix", undefined], ["#33", "toFix", undefined], ["#37", "fixing", "PR #12"], ["#34", "fixing", "PR #13"]]);
+assert.equal(rows[3].tagColor, "muted");
+assert.deepEqual(issueRows([issue(35)], null), [{ id: "#35", title: "I35", meta: "alice", tag: undefined, url: "u35" }]); // detection failed: as today
+assert.deepEqual(issueRows([issue(35)], new Map()).map((r) => r.group), ["toFix"]);
+// Group titles, counts after filter, empty group without title, up onto a group's first row shows its title
+assert.deepEqual(groupLayout(rows).filter((c) => c.title), [{ title: "À corriger", count: 2 }, { title: "En cours de correction", count: 2 }]);
+assert.deepEqual(groupLayout(rows.slice(2)).filter((c) => c.title), [{ title: "En cours de correction", count: 2 }]);
+assert.equal(listIndex(rows, 2, true), 3); // title of En cours de correction
+}
 console.log("github ok");
