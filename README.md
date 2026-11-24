@@ -43,6 +43,10 @@ accepté tel quel : prendre le filtre du board.
 Pour la changer ensuite, éditer ou supprimer l'entrée du repo dans ce fichier :
 `{"jira": {"owner/repo": "ABC"}}`. `node mods/start-work/jira.test.js`, `node mods/start-work/tasks.test.js`, `node mods/start-work/profile.test.js`, `node mods/start-work/github.test.js`, `node mods/start-work/filter.test.js`, `node mods/start-work/start.test.js`, `node mods/start-work/launch.test.js` et `node mods/start-work/main.test.js` vérifient la source, .config.json, la lecture du reste à faire, le choix du compte, le statut des PR, les groupes de PR et les approbations, le filtre, les règles de lancement, les appels `acli` et `herdr-app`, et le parcours du dialogue (Lancer, confirmation, prise en charge, échecs).
 
+Pour une clé de projet, l'onglet ne liste que les tickets lançables : au statut « À faire », ou « En cours » et
+attribués à moi, dans le sprint actif, et sans bloqueur non terminé (lien Jira « is blocked by »). Un filtre ou du JQL
+est pris tel quel.
+
 ### Onglet Tâches
 
 Le troisième onglet s'appelle « Tâches » et remplace Jira dans deux cas : le profil `/profile` du propriétaire a
