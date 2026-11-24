@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { fake, reset } from "./fake.js";
 const { THREADS_QUERY } = await import("./github.js");
-const { launchAgent, takeTicket, isMine, assess, fetchTasks, fetchGh } = await import("./launch.js");
+const { launchAgent, takeTicket, isMine, assess, fetchTasks, fetchGh, fetchTickets } = await import("./launch.js");
 
 const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
 const ticket = (o = {}) => ({ id: "POSO-127", type: "Story", statusName: "À faire", statusCategory: "new", assigneeName: null, url: "https://x/browse/POSO-127", ...o });
@@ -147,5 +147,48 @@ reset(() => ({ code: 1, stdout: "", stderr: "Could not resolve to a Repository" 
 assert.deepEqual(await fetchGh("issue", "o/r", "me", {}, "/p.json"), { error: "Le compte gh me (profil du projet) ne voit pas o/r." });
 reset((c, a) => (a[0] === "api" ? ok("carol\n") : { code: 1, stdout: "", stderr: "Could not resolve to a Repository" }));
 assert.deepEqual(await fetchGh("issue", "o/r", undefined, {}, "/p.json"), { error: "Le compte gh actif (carol) ne voit pas o/r, et aucun profil (/p.json) ne couvre ce propriétaire. Change de compte avec gh auth switch." });
+
+// fetchTickets (caractérisation) : search + auth status sur la machine du repo, site pris dans auth status.
+const SITE_OK = ok("✓ Authenticated\n  Site: x.atlassian.net\n");
+const isAuth = (a) => a[1] === "auth";
+const RAW_TICKET = { key: "POSO-1", fields: { summary: "S", issuetype: { name: "Story" }, status: { name: "À faire", statusCategory: { key: "new" } }, assignee: null } };
+let ticketOpts = [];
+reset((_c, a, o) => { ticketOpts.push(o); return isAuth(a) ? SITE_OK : ok(JSON.stringify([RAW_TICKET])); });
+assert.deepEqual(await fetchTickets("filter=1", "vps"), [
+  { id: "POSO-1", title: "S", meta: "À faire", url: "https://x.atlassian.net/browse/POSO-1", type: "Story", statusName: "À faire", statusCategory: "new", assigneeName: "" },
+]);
+assert.deepEqual(fake.calls, [
+  ["acli", "jira", "workitem", "search", "--jql", "filter = 1", "--fields", "key,summary,status,assignee,issuetype", "--limit", "50", "--json"],
+  ["acli", "jira", "auth", "status"],
+]);
+assert.deepEqual(ticketOpts, [{ on: "vps" }, { on: "vps" }]);
+reset((_c, a) => (isAuth(a) ? ok("✓ Authenticated\n") : ok("[]")));
+await assert.rejects(fetchTickets("filter=1", null), /site Jira absent de acli jira auth status/);
+reset((_c, a) => (isAuth(a) ? { code: 1, stdout: "", stderr: "unauthorized: use acli jira auth login\n" } : ok("[]")));
+await assert.rejects(fetchTickets("filter=1", null), /^Error: unauthorized: use acli jira auth login$/);
+
+// fetchTickets, clé de projet : liens puis bloqueurs, sur la machine du repo ; POSO-2 bloqué sort.
+const twoTickets = [RAW_TICKET, { ...RAW_TICKET, key: "POSO-2" }];
+const linksArgs = ["--jql", 'key in (POSO-1, POSO-2) AND issueLinkType = "is blocked by"', "--fields", "summary", "--limit", "2", "--json"];
+const blockersArgs = ["--jql", 'issue in linkedIssues(POSO-2, "is blocked by") AND statusCategory != Done', "--fields", "summary", "--limit", "1", "--json"];
+const jqlOf = (a) => a[a.indexOf("--jql") + 1];
+let blockedOpts = [];
+reset((_c, a, o) => {
+  blockedOpts.push(o);
+  if (isAuth(a)) return SITE_OK;
+  if (jqlOf(a).startsWith("key in")) return ok('[{"key":"POSO-2"}]');
+  if (jqlOf(a).startsWith("issue in")) return ok('[{"key":"POSO-9"}]');
+  return ok(JSON.stringify(twoTickets));
+});
+assert.deepEqual((await fetchTickets("poso", "vps")).map((t) => t.id), ["POSO-1"]);
+assert.deepEqual(fake.calls.slice(2), [["acli", "jira", "workitem", "search", ...linksArgs], ["acli", "jira", "workitem", "search", ...blockersArgs]]);
+assert.ok(blockedOpts.every((o) => o.on === "vps"));
+// Source filtre : aucune recherche de bloqueurs.
+reset((_c, a) => (isAuth(a) ? SITE_OK : ok(JSON.stringify(twoTickets))));
+assert.deepEqual((await fetchTickets("filter=1", null)).map((t) => t.id), ["POSO-1", "POSO-2"]);
+assert.equal(fake.calls.length, 2);
+// Liens en échec : fetchTickets rejette avec la première ligne d'acli.
+reset((_c, a) => (isAuth(a) ? SITE_OK : jqlOf(a).startsWith("key in") ? { code: 1, stdout: "", stderr: "✗ Error: forbidden\n" } : ok(JSON.stringify(twoTickets))));
+await assert.rejects(fetchTickets("POSO", null), /forbidden/);
 
 console.log("launch ok");

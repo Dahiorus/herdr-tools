@@ -3,8 +3,12 @@ import { exec, notify, readTextFile, closeOverlay, props, window } from "herdr";
 import { GH_LISTS, PR_LISTS, THREADS_QUERY, threadsSearch, feedbackNumbers, prRows, fixingArgs, fixingPrs, issueRows } from "./github.js";
 import { ghCommand, json, sh } from "./run.js";
 import { firstLine, tabError, ticketRow, decide, takeSteps, takeWith } from "./start.js";
-import { toJql } from "./jira.js";
+import { toJql, projectKey, withoutBlocked } from "./jira.js";
 import { remainingWorkFile, parseTasks } from "./tasks.js";
+
+// Runs a JQL search on the repo's machine; summary because acli --fields key alone returns [null].
+const searchKeys = (machine) => (jql, limit) =>
+  json("acli", ["jira", "workitem", "search", "--jql", jql, "--fields", "summary", "--limit", String(limit), "--json"], { on: machine });
 
 export async function fetchTickets(source, machine) {
   const [r, auth] = await Promise.all([
@@ -14,7 +18,8 @@ export async function fetchTickets(source, machine) {
   // `self` points at an internal Atlassian host, not the site: take the site from auth status.
   const site = auth.stdout.match(/Site:\s*(\S+)/)?.[1];
   if (!site) throw new Error(auth.code !== 0 ? (firstLine(auth) || "acli jira auth status a échoué") : "site Jira absent de acli jira auth status (acli jira auth login)");
-  return r.map((i) => ticketRow(i, site));
+  const items = projectKey(source) === null ? r : await withoutBlocked(r, searchKeys(machine));
+  return items.map((i) => ticketRow(i, site));
 }
 
 // Error message, or null once the agent tab exists. exec rejects when herdr-app can't start.
