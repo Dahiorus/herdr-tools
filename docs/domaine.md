@@ -62,3 +62,29 @@ skill `/todo`, lu seulement : ses conventions sont traduites en tâches à la fr
 Invariants : la liste ne montre que du travail ouvert ; une PR brouillon est une PR ouverte ; une PR est dans un seul
 groupe de PR (une de mes PR est dans Retours sur mes PR ou dans Mes PR, jamais les deux) ; une issue est dans un seul groupe d'issues ; les approbations se comptent une par relecteur, sur son dernier avis décisif ; Start work ne modifie
 jamais le reste à faire (seule la skill `/todo` le tient) ; un numéro de tâche est celui du fichier, jamais renuméroté ; une PR fusionnée ou fermée n'est jamais une PR de correction.
+
+## Contexte : Panneau PR
+
+Responsabilité : montrer en continu, à droite de la fenêtre, où en est la PR courante (statut, approbations, ma
+relecture demandée, CI, Sonar, fils et commentaires, description), l'ouvrir dans le navigateur ou lancer le travail
+dessus (relire, traiter les retours) · Dans le code : `mods/pr-panel/` · Dépend de : Start work (noyau partagé : les
+règles de PR de `github.js`, `profile.js`, `run.js`, `launch.js` ; mêmes termes, mêmes sens), GitHub (en aval, via `gh`),
+profils Claude (en aval, `~/.claude/profiles.json`, pour le compte `gh`), Herdr (en aval : `focused()` pour le terminal
+suivi, `tab.new` pour l'onglet de l'agent)
+
+Les termes de Start work (PR ouverte, Statut de PR, Moi, PR à relire, Approbation, Relecteur, Fil de relecture, Fil en
+attente, Commentaire hors fil, Retours, Relire, Traiter les retours, Ouvrir, Lancer le travail) gardent ici leur sens.
+
+| Terme | Définition métier | Dans le code | À ne pas dire |
+|---|---|---|---|
+| Branche courante | Branche git extraite dans le dossier du terminal focalisé ; aucune en HEAD détaché | `branch` du pane focalisé (`panes()`), tenue à jour par Herdr | branche active |
+| PR courante | PR ouverte du repo dont la branche source est la branche courante ; plusieurs (une par base) : le panneau les montre toutes, l'une sous l'autre ; les PR venant d'un fork sont écartées | `gh pr list --head <branche> --state open` | PR active, PR en cours |
+| Ma relecture demandée | La PR courante est une PR à relire (d'un autre, relecture demandée à moi ou à une de mes équipes, pas encore rendue) | `reviewAsked` | review en attente |
+| Check | Vérification automatique rapportée par GitHub sur le dernier commit de la PR (job de CI, analyse) : en échec, en cours ou réussie | élément de `statusCheckRollup` (`CheckRun` ou `StatusContext`) | job, build (un check n'est pas forcément un build) |
+| CI | Ensemble des checks de la PR courante hors Sonar, résumé en nombres d'échecs, en cours et réussis | `checksOf(...).ci` | pipeline, build |
+| Analyse Sonar | Check de la PR dont le nom contient « sonar » (casse ignorée) ; montrée à part de la CI, absente si le repo n'en a pas | `checksOf(...).sonar` | quality gate (Sonar peut rapporter une analyse sans porte qualité) |
+| Description de PR | Texte (markdown) que l'auteur a écrit dans le corps de la PR | `body` | résumé, détail |
+
+Invariants : le panneau ne modifie rien sur GitHub (ni avis, ni réponse, ni fusion) ; il suit le dernier terminal
+focalisé ; un check est compté une fois, dans la CI ou en Analyse Sonar, jamais les deux ; Ma relecture demandée est
+toujours fausse sur une de mes PR.
