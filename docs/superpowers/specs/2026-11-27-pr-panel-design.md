@@ -38,7 +38,8 @@ Start work. Chaque état a son affichage (voir §4) ; premier chargement et chan
 | `originRepo` (`mods/start-work/launch.js:47`) | Sa regex sort dans `githubRepo(url)` (module pur), qu'il appelle : comportement inchangé |
 | `ghCommand`, `GH_AS` (`mods/start-work/run.js:7-8`) | Déplacés dans `mods/start-work/profile.js`, réexportés par `run.js` : appelants (`launch.js:82,103,124`) inchangés |
 | `profileAccount` (`profile.js:9`) | Réutilisé tel quel |
-| Layout `main` (livré par Herdr) | Inchangé : le panneau s'y pose par `"place"` la première fois, sans clone du layout |
+| Layout `main` (livré par Herdr) | Pas de clone : le panneau s'y pose en colonne à droite par `"place"` la première fois, à côté de Files et Changes, sans toucher à leur pile |
+| `keys.json` | `ctrl-shift-g` (libre ; celle du mod de PR du harnais) → `layout.toggle` du bloc du panneau : l'ouvre et le ferme. Herdr garde l'état ouvert ou fermé d'une session à l'autre |
 
 Un mod importe `../start-work/*.js`. `run.js` et `launch.js` importent `herdr` et ne tournent pas sous node, d'où les
 déplacements vers `profile.js`, déjà pur et testé.
@@ -126,18 +127,8 @@ Combinés :
 - La réponse d'un ancien terminal arrive après le changement de focus : elle ne remplace pas l'affichage du nouveau.
 - Sur une de mes PR, même si la recherche `review-requested:@me` la trouvait : pas de « demandée », pas de Relire.
 
-- Le panneau est toujours là après un redémarrage de Herdr.
-
-:::question
-Comment ouvrir le panneau PR : un onglet « PR » à côté de Files et Changes, ou une colonne à part ?
-
-Le layout « Herdr » et sa barre d'onglets appartiennent à Herdr : il les remplace à chaque démarrage, une modification directe est annulée. Pour un onglet « PR » à côté de Files et Changes, il faut une copie à soi (un « clone ») du layout et de la barre d'onglets : je les copie une fois, j'y ajoute l'onglet, et Herdr affiche ta copie. Le prix : ta copie ne reçoit plus les améliorations que Herdr apporte à ce layout et à cette barre ; pour les récupérer, on refait la copie et on y remet l'onglet.
-
-- [ ] Onglet « PR » à côté de Files et Changes, avec une copie du layout et de la barre d'onglets — ce que tu demandes ; à refaire quand Herdr fait évoluer sa barre
-- [ ] Colonne à part, à droite, ouverte et fermée par un raccourci — aucune copie, suit les mises à jour de Herdr, mais pas d'onglet dans la barre
-
-Recommended: Onglet « PR » à côté de Files et Changes, avec une copie du layout et de la barre d'onglets
-:::
+- `ctrl-shift-g` ferme le panneau, `ctrl-shift-g` le rouvre ; fermé, il ne prend aucune place.
+- Après un redémarrage de Herdr, le panneau est toujours là, ouvert ou fermé comme avant.
 
 ## 5. Filet sur l'existant
 
