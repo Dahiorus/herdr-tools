@@ -78,13 +78,13 @@ attente, Commentaire hors fil, Retours, Relire, Traiter les retours, Ouvrir, Lan
 | Terme | Définition métier | Dans le code | À ne pas dire |
 |---|---|---|---|
 | Branche courante | Branche git extraite dans le dossier du terminal focalisé ; aucune en HEAD détaché | `branch` du pane focalisé (`panes()`), tenue à jour par Herdr | branche active |
-| PR courante | PR ouverte du repo dont la branche source est la branche courante ; le panneau n'en montre qu'une | `gh pr list --head <branche> --state open` | PR active, PR en cours |
+| PR courante | PR ouverte du repo dont la branche source est la branche courante ; plusieurs (une par base) : le panneau les montre toutes, l'une sous l'autre ; les PR venant d'un fork sont écartées | `gh pr list --head <branche> --state open` | PR active, PR en cours |
 | Ma relecture demandée | La PR courante est une PR à relire (d'un autre, relecture demandée à moi ou à une de mes équipes, pas encore rendue) | `reviewAsked` | review en attente |
 | Check | Vérification automatique rapportée par GitHub sur le dernier commit de la PR (job de CI, analyse) : en échec, en cours ou réussie | élément de `statusCheckRollup` (`CheckRun` ou `StatusContext`) | job, build (un check n'est pas forcément un build) |
 | CI | Ensemble des checks de la PR courante hors Sonar, résumé en nombres d'échecs, en cours et réussis | `checksOf(...).ci` | pipeline, build |
 | Analyse Sonar | Check de la PR dont le nom contient « sonar » (casse ignorée) ; montrée à part de la CI, absente si le repo n'en a pas | `checksOf(...).sonar` | quality gate (Sonar peut rapporter une analyse sans porte qualité) |
 | Description de PR | Texte (markdown) que l'auteur a écrit dans le corps de la PR | `body` | résumé, détail |
 
-Invariants : le panneau ne modifie rien sur GitHub (ni avis, ni réponse, ni fusion) ; il suit toujours le terminal
+Invariants : le panneau ne modifie rien sur GitHub (ni avis, ni réponse, ni fusion) ; il suit le dernier terminal
 focalisé ; un check est compté une fois, dans la CI ou en Analyse Sonar, jamais les deux ; Ma relecture demandée est
 toujours fausse sur une de mes PR.
