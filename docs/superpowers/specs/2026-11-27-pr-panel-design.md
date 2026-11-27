@@ -25,7 +25,9 @@ Approches écartées :
 ### R1. Le panneau suit la PR courante du terminal focalisé
 
 `focused()` → pane focalisé de `panes()` (son `cwd` et sa `branch`, tenus à jour par Herdr) → `origin` GitHub → PR
-courante. La branche vient de Herdr, pas de `git branch` : un `git switch` dans le même terminal change `branch`, ce
+courante. Plusieurs PR ouvertes pour la branche (vers deux bases) : toutes, l'une sous l'autre, chacune avec ses
+sections. Les PR venant d'un fork ne sont pas cherchées. Le focus passe sur un pane qui n'est pas un terminal
+(Files, Changes, un autre mod) : le panneau garde la dernière PR affichée. La branche vient de Herdr, pas de `git branch` : un `git switch` dans le même terminal change `branch`, ce
 qui redessine le panneau sans attendre. `git` et `gh` tournent sur la machine de l'espace du terminal (`on`), comme
 Start work. Chaque état a son affichage (voir §4) ; premier chargement et changement de terminal ou de branche :
 « Chargement… » ; ↻ et le rafraîchissement des 120 s gardent l'affichage jusqu'à la réponse.
@@ -46,11 +48,11 @@ déplacements vers `profile.js`, déjà pur et testé.
 | Section | Source | Règle |
 |---|---|---|
 | En-tête | `gh pr list --json number,title,url,isDraft,…` | titre (clic : Ouvrir), `#n`, Statut de PR, `+add −del · n fichiers` |
-| Approbations | `reviews` | Une par relecteur, sur son dernier avis décisif. Libellé : voir la question sur le libellé. Dessous, un relecteur par ligne : login, puis ✓ (approuvé, vert) ou « changements demandés » (rouge) ; un relecteur qui n'a fait que commenter n'y figure pas |
+| Approbations | `reviews` | Une par relecteur, sur son dernier avis décisif. Sur mes PR, le libellé de Start work (`myPrMeta` : « n/2 », « Prête pour la QA », « Changements demandés ») ; sur la PR d'un autre, toujours « n/2 ». Dessous, un relecteur par ligne : login, puis ✓ (approuvé, vert) ou « changements demandés » (rouge) ; un relecteur qui n'a fait que commenter n'y figure pas |
 | Ma relecture demandée | `gh pr list --head <branche> --search review-requested:@me` | Seulement sur la PR d'un autre, demande à moi ou à une de mes équipes (même recherche que Start work) |
 | CI | `statusCheckRollup` hors Sonar | Résumé `n en échec · n en cours · n ✓`, puis un check par ligne en échec ou en cours, cliquable |
 | Analyse Sonar | checks dont le nom contient « sonar » | Une ligne, au pire état de ces checks, cliquable comme un check ; absente sans check Sonar |
-| Fils et commentaires | GraphQL `reviewThreads` + commentaires de la conversation + texte des avis | Ordre : voir la question sur l'ordre. Un fil : `fichier:ligne`, puis chaque commentaire « auteur : texte » (réponses en retrait). Un commentaire hors fil : « auteur : texte ». Mes propres commentaires hors fil ne sont pas listés. Titre : voir la question sur le titre |
+| Fils et commentaires | GraphQL `reviewThreads` + commentaires de la conversation + texte des avis | Sur mes PR, fils en attente de ma réponse d'abord (`isPending`) ; sur la PR d'un autre, fils non résolus d'abord. Puis les commentaires hors fil. Un fil : `fichier:ligne`, puis chaque commentaire « auteur : texte » (réponses en retrait). Un commentaire hors fil : « auteur : texte ». Mes propres commentaires hors fil ne sont pas listés. Les commentaires des bots (Sonar, Jenkins, Copilot…) sont montrés en gris. Titre « Fils et commentaires » partout, suivi sur mes PR du compte des fils en attente (« 2 en attente ») |
 | Description | `body` | Markdown ; vide : « Pas de description » |
 
 État d'un check : `SUCCESS`, `NEUTRAL`, `SKIPPED` → réussi ; `FAILURE`, `ERROR`, `CANCELLED`, `TIMED_OUT`,
@@ -97,7 +99,12 @@ Nominaux :
 - Une de mes PR prête, 1 approbation d'alice, CI 1 en échec et 2 réussis, Sonar réussi, un fil d'alice en attente et
   une description : le panneau montre « Prête », « 1/2 » avec alice ✓, la ligne CI et le check en échec, Sonar ✓, le
   fil d'alice en tête, le bouton Retours, la description en markdown.
-- La PR de bob qui me demande une relecture : « demandée » et le bouton Relire ; pas de bouton Retours.
+- La PR de bob qui me demande une relecture : « demandée » et le bouton Relire ; pas de bouton Retours ; « 1/2 »
+  même avec 2 approbations ou une demande de changements (visible dans la liste des relecteurs) ; ses fils non
+  résolus d'abord.
+- La branche a deux PR ouvertes : les deux, l'une sous l'autre.
+- Focus sur le panneau Files : le panneau PR garde la PR affichée.
+- Un commentaire hors fil de `sonarqubecloud[bot]` : affiché en gris.
 - Clic sur le titre ou sur un check : ouvert dans le navigateur.
 - Changer de terminal focalisé vers un autre repo : le panneau montre la PR de ce repo.
 - `git switch` vers une autre branche dans le même terminal : le panneau montre la PR de la nouvelle branche.
@@ -119,86 +126,17 @@ Combinés :
 - La réponse d'un ancien terminal arrive après le changement de focus : elle ne remplace pas l'affichage du nouveau.
 - Sur une de mes PR, même si la recherche `review-requested:@me` la trouvait : pas de « demandée », pas de Relire.
 
-:::question
-Quand la branche courante a plusieurs PR ouvertes (vers deux bases différentes), laquelle montrer ?
-
-C'est rare (une PR vers main et une vers une branche de release). Les PR venant d'un fork ne sont pas cherchées.
-
-- [ ] La plus récente, avec « +1 » à côté du numéro — une seule vue, l'autre signalée
-- [ ] La plus récente, sans rien signaler — plus simple, l'autre est invisible
-- [ ] Toutes, l'une sous l'autre — complet, mais le panneau s'allonge
-
-Recommended: La plus récente, avec « +1 » à côté du numéro
-:::
-
-:::question
-Sur la PR d'un autre, comment s'appelle la section des fils et commentaires ?
-
-Le glossaire réserve « Retours » aux commentaires en attente de ma réponse sur une de mes PR. Sur la PR d'un autre, rien ne m'attend.
-
-- [ ] « Retours » sur mes PR, « Fils et commentaires » sur celles des autres — le glossaire reste juste
-- [ ] « Fils et commentaires » partout, avec le compte des fils en attente sur mes PR — un seul libellé
-- [ ] « Retours » partout — plus court, mais le terme change de sens
-
-Recommended: « Retours » sur mes PR, « Fils et commentaires » sur celles des autres
-:::
-
-:::question
-Sur la PR d'un autre, quel libellé d'approbation ?
-
-Sur mes PR, start-work montre « 1/2 », « Prête pour la QA » (2 approbations) ou « Changements demandés ». Le glossaire réserve « Prête pour la QA » à mes PR.
-
-- [ ] Le même que sur mes PR — cohérent avec start-work
-- [ ] Toujours « n/2 » sur la PR d'un autre, demandes de changements visibles dans la liste des relecteurs — glossaire respecté
-
-Recommended: Toujours « n/2 » sur la PR d'un autre, demandes de changements visibles dans la liste des relecteurs
-:::
-
 - Le panneau est toujours là après un redémarrage de Herdr.
 
 :::question
-Sur la PR d'un autre, dans quel ordre montrer les fils ?
+Comment ouvrir le panneau PR : un onglet « PR » à côté de Files et Changes, ou une colonne à part ?
 
-La règle « en attente de ma réponse » ne vaut que pour mes PR. Sur la PR de bob, un fil que j'ai ouvert attend bob, pas moi : il passerait en tête à tort.
+Le layout « Herdr » et sa barre d'onglets appartiennent à Herdr : il les remplace à chaque démarrage, une modification directe est annulée. Pour un onglet « PR » à côté de Files et Changes, il faut une copie à soi (un « clone ») du layout et de la barre d'onglets : je les copie une fois, j'y ajoute l'onglet, et Herdr affiche ta copie. Le prix : ta copie ne reçoit plus les améliorations que Herdr apporte à ce layout et à cette barre ; pour les récupérer, on refait la copie et on y remet l'onglet.
 
-- [ ] Fils en attente de ma réponse d'abord, partout — une seule règle, faux sur la PR d'un autre
-- [ ] Sur la PR d'un autre, fils non résolus d'abord — ce qui reste ouvert, quel que soit qui doit répondre
-- [ ] Ordre chronologique, partout — le plus simple
+- [ ] Onglet « PR » à côté de Files et Changes, avec une copie du layout et de la barre d'onglets — ce que tu demandes ; à refaire quand Herdr fait évoluer sa barre
+- [ ] Colonne à part, à droite, ouverte et fermée par un raccourci — aucune copie, suit les mises à jour de Herdr, mais pas d'onglet dans la barre
 
-Recommended: Sur la PR d'un autre, fils non résolus d'abord
-:::
-
-:::question
-Que montre le panneau quand le focus passe sur un panneau qui n'est pas un terminal (Files, Changes, un autre mod) ?
-
-Sans terminal focalisé, il n'y a ni dossier ni branche à suivre.
-
-- [ ] Garder la dernière PR affichée — pas de clignotement en passant d'un panneau à l'autre
-- [ ] « Aucun terminal focalisé », comme Start work — plus juste, mais il se vide souvent
-
-Recommended: Garder la dernière PR affichée
-:::
-
-:::question
-Où placer le panneau ?
-
-Le layout « Herdr » livré a déjà Files et Changes à droite. Un mod posé « à droite » y ajoute une colonne sans cloner le layout ; je n'ai pas vérifié qu'elle survit à un redémarrage (Herdr remplace son layout à chaque démarrage).
-
-- [ ] Colonne à droite posée par le mod, sans cloner le layout — rien à maintenir ; repli sur le clone si la colonne ne survit pas
-- [ ] Cloner le layout et mettre le panneau dans la pile Files / Changes — un onglet de plus à côté d'eux, mais le clone ne reçoit plus les mises à jour de Herdr
-
-Recommended: Colonne à droite posée par le mod, sans cloner le layout
-:::
-
-:::question
-Faut-il cacher les commentaires hors fil postés par des bots (Sonar, Jenkins, Copilot…) ?
-
-Ils répètent souvent ce que les lignes CI et Sonar montrent déjà. Les fils ouverts par un bot ne comptent déjà pas comme en attente.
-
-- [ ] Les cacher — la liste ne garde que les humains
-- [ ] Les montrer, en gris — rien de perdu, plus de bruit
-
-Recommended: Les cacher
+Recommended: Onglet « PR » à côté de Files et Changes, avec une copie du layout et de la barre d'onglets
 :::
 
 ## 5. Filet sur l'existant
