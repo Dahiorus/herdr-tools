@@ -62,7 +62,7 @@ déplacements vers `profile.js`, déjà pur et testé.
 | Endroit | Ce qu'il devient |
 |---|---|
 | `isPending`, `prStatus`, `APPROVALS_FOR_QA` (`mods/start-work/github.js`) | Réutilisés tels quels |
-| `lastVerdicts` (`github.js:71`, privé) | Exporté et rendu par relecteur (login → état) ; `myPrMeta` construit dessus, comportement inchangé (tests de `github.test.js` verts) |
+| `lastVerdicts` (`github.js:75`, privé) | Exporté et rendu par relecteur (login → état) ; `myPrMeta` construit dessus, comportement inchangé (tests de `github.test.js` verts) |
 | `THREADS_QUERY` (`github.js:36`) | Inchangé : il cherche mes PR sans le texte des commentaires. Le panneau a sa requête, dans `mods/pr-panel/pr.js` |
 | Onglet PR de start-work | Inchangé |
 
